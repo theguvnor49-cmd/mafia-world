@@ -39,7 +39,7 @@ mafia-world/
 
 ## Running it locally
 
-You'll need Node.js 20+ and a PostgreSQL server. This project was developed and verified inside Claude's cloud sandbox using Postgres 16; any reasonably recent Postgres (13+) should work.
+You'll need Node.js 20+ and a PostgreSQL server (13+). The database schema was verified against a real local Postgres 16 while building this, but the sandbox it was built in couldn't reach the npm registry (blocked by that environment's network policy — see "Open questions" in `GAME_DESIGN.md`), so `npm install` and the actual running server/frontend have **not** been tested yet. These steps should work — please report back anything that breaks so it gets fixed fast.
 
 ### 1. Database
 

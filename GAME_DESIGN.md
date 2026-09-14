@@ -337,11 +337,6 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
    8+ characters. Easy to change.
 5. **Session length.** Not specified — implementation currently issues
    7-day JWTs. Easy to change.
-
-None of these block Phase 1; they're flagged here so they get a real
-decision (not just an assumption baked in silently) before the phases that
-depend on them.
-
 6. **Full local runtime verification.** The Claude cloud sandbox this repo
    was built in has a network policy that blocks `registry.npmjs.org` /
    `pypi.org` outright (confirmed: direct requests and proxied requests both
@@ -354,3 +349,7 @@ depend on them.
    starting the Fastify server and the Next.js app and exercising the HTTP
    endpoints. Do that first via the README's "Running it locally" steps (or
    once deployed to Render/Vercel) and report back anything that breaks.
+
+None of these block Phase 1; they're flagged here so they get a real
+decision (not just an assumption baked in silently) before the phases that
+depend on them.
