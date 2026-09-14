@@ -1,0 +1,37 @@
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import { env } from './config';
+import { authRoutes } from './routes/auth';
+import { meRoutes } from './routes/me';
+
+const app = Fastify({ logger: true });
+
+async function main() {
+  await app.register(cors, { origin: env.CORS_ORIGIN });
+
+  app.get('/health', async () => ({
+    ok: true,
+    data: { status: 'up', time: new Date().toISOString() },
+  }));
+
+  await app.register(authRoutes);
+  await app.register(meRoutes);
+
+  app.setErrorHandler((error, request, reply) => {
+    request.log.error(error);
+    // Never leak stack traces or internals to the client.
+    reply.code(error.statusCode ?? 500).send({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Something went wrong.' },
+    });
+  });
+
+  try {
+    await app.listen({ port: env.PORT, host: '0.0.0.0' });
+  } catch (err) {
+    app.log.error(err);
+    process.exit(1);
+  }
+}
+
+main();
