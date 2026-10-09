@@ -80,9 +80,10 @@ during implementation:**
 - **DEAD** — `dead_until = now() + 24h`. Revivable early with premium points.
 - **JAIL** — `jail_until` set on arrest; normal criminal activity blocked
   until it passes or a bust-out succeeds.
-- **HOSPITAL** — `hospital_until` set by future combat/events; a recovery
-  percentage is shown, not a boring waiting screen (small recovery
-  activities come in Phase 9).
+- **HOSPITAL** — `hospital_until` set as of Phase 9, as the free path's
+  second stage after death rather than by combat directly (see section
+  22 for the full reasoning); a recovery percentage is shown, not a
+  boring waiting screen, alongside small recovery activities.
 
 Server time is authoritative everywhere — never trust a browser-side timer
 for anything that matters.
