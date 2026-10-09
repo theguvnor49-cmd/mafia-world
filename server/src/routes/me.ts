@@ -16,7 +16,10 @@ interface UserRow {
   mafia_xp: string;
   bullets: number;
   equipped_gun: string | null;
+  gun_bullet_multiplier: string | null;
   equipped_armour: string | null;
+  armour_bonus_bullets: number | null;
+  armour_multiplier: string | null;
   heat: number;
   dead_until: string | null;
   jail_until: string | null;
@@ -43,13 +46,17 @@ export async function meRoutes(app: FastifyInstance) {
     const userId = request.user!.userId;
 
     const result = await pool.query<UserRow>(
-      `SELECT id, username, email, created_at, last_seen, state, cash, premium_points,
-              mafia_xp, bullets, equipped_gun, equipped_armour, heat,
-              dead_until, jail_until, hospital_until,
-              crimes_committed, crimes_succeeded, crimes_failed, kills, deaths,
-              bullets_fired, bullets_spent, cash_earned, cash_lost, cars_stolen, cars_melted,
-              jail_seconds_served, times_arrested, successful_busts, failed_busts
-       FROM users WHERE id = $1`,
+      `SELECT u.id, u.username, u.email, u.created_at, u.last_seen, u.state, u.cash, u.premium_points,
+              u.mafia_xp, u.bullets, u.equipped_gun, g.bullet_multiplier AS gun_bullet_multiplier,
+              u.equipped_armour, a.bonus_bullets AS armour_bonus_bullets, a.multiplier AS armour_multiplier,
+              u.heat, u.dead_until, u.jail_until, u.hospital_until,
+              u.crimes_committed, u.crimes_succeeded, u.crimes_failed, u.kills, u.deaths,
+              u.bullets_fired, u.bullets_spent, u.cash_earned, u.cash_lost, u.cars_stolen, u.cars_melted,
+              u.jail_seconds_served, u.times_arrested, u.successful_busts, u.failed_busts
+       FROM users u
+       LEFT JOIN guns g ON g.name = u.equipped_gun
+       LEFT JOIN armour a ON a.name = u.equipped_armour
+       WHERE u.id = $1`,
       [userId]
     );
     const user = result.rows[0];
@@ -73,8 +80,16 @@ export async function meRoutes(app: FastifyInstance) {
         mafia_xp: Number(user.mafia_xp),
         rank: rank.name,
         bullets: user.bullets,
-        equipped_gun: user.equipped_gun,
-        equipped_armour: user.equipped_armour,
+        equippedGun: user.equipped_gun
+          ? { name: user.equipped_gun, bulletMultiplier: Number(user.gun_bullet_multiplier) }
+          : null,
+        equippedArmour: user.equipped_armour
+          ? {
+              name: user.equipped_armour,
+              bonusBullets: user.armour_bonus_bullets,
+              multiplier: Number(user.armour_multiplier),
+            }
+          : null,
         heat: user.heat,
         status: deriveStatus(user),
         stats: {

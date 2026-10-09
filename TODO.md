@@ -37,18 +37,29 @@ Tracks build status against the 15 phases in `GAME_DESIGN.md`. Keep this updated
 - [x] `vitest` added as a devDependency; `gta.test.ts` + `heat.test.ts` mirror the assertions already run as a standalone script (below)
 - [x] **Actually executed**, not just syntax-checked: the GTA/heat pure logic was run via a manually-detyped standalone copy with plain `node` — 20 assertions, all passing. Caught one flawed test expectation in the process (see `GAME_DESIGN.md` section 17 — the brief's 90% success-chance cap isn't reachable through rank/heat alone; realistic ceiling is 87%). That finding is now also asserted in `gta.test.ts`.
 
+**Phase 4 — Weapons**
+- [x] `005_weapons.sql` — real `guns` (5 seeded) and `armour` (3 seeded) catalog tables; `users.equipped_gun`/`equipped_armour` are now real foreign keys into them (free text since Phase 1, specifically for this)
+- [x] `server/src/mafia/bulletCalculator.ts` — `calculateBulletsToKill`, pure, catalog-agnostic (same function Phase 5's real kill resolution will use)
+- [x] `GET /api/v1/mafia/weapons/guns` / `armour`, `POST .../guns/:name/buy` / `armour/:name/buy` — transactional, locks the row, rejects re-buying what's already equipped, checks affordability
+- [x] `GET /api/v1/mafia/weapons/calculator` — informational "what-if" endpoint, never looks up a real player
+- [x] `GET /api/v1/ranks` — new public endpoint exposing the rank ladder (needed so the calculator's target-rank dropdown isn't guessing the numbers)
+- [x] `GET /api/v1/me` now joins the catalog tables and returns equipped gun/armour as `{name, bulletMultiplier}` / `{name, bonusBullets, multiplier}` instead of a bare string
+- [x] Frontend: `/mafia/armoury` — gun/armour shop with afford/equipped states, bullet calculator form; dashboard shows equipped gear and links to it
+- [x] `bulletCalculator.test.ts` added; same actually-executed-in-a-scratchpad-script verification as Phase 3 (hand-worked examples + a 40-combination sanity sweep across every real rank × gun × armour combo)
+- [x] Verified the migration directly via `psql`, including proving the new FK rejects a bogus gun name and that the `/api/v1/me` join returns correct values for a real equipped gun/armour
+
 **Not yet verified for any phase:** a full `npm install` + running-server + HTTP round-trip test, and running the vitest suites *as vitest* rather than as a standalone script. This cloud sandbox's network policy blocks `registry.npmjs.org` (confirmed twice now, in two separate sessions a few weeks apart — once as an explicit "host not allowed"/"organization policy" denial, once as outright DNS failure) and the internal mirror needs credentials this session doesn't have — see "Open questions" in `GAME_DESIGN.md`. The code is written and reviewed carefully, but treat the first real `npm install && npm run dev` (by you, or once pushed to Render/Vercel) as the real first run.
 
 ## In progress
 
-- [ ] Phase 4 — Weapons (guns, armour, bullets, equipment, bullet calculator) — building now.
+- [ ] None right now — see "Next". Phase 5 (PvP) is substantial enough (hunt/search, kill resolution, death/revive, witnesses) that it's worth a quick check-in before diving in; see the message alongside this update.
 
 ## Next
 
+- [ ] Phase 5 — PvP (search/hunt, kill, death, revive, witnesses)
 - [ ] **Deployment walkthrough** (Step 8 of the original brief): GitHub repo → Supabase (Postgres) → Render (backend) → Vercel (frontend), one exact step at a time.
 
 ## Future (not started)
-- [ ] Phase 5 — PvP (search/hunt, kill, death, revive, witnesses)
 - [ ] Phase 6 — Police (jail bust-outs, jail statistics, government framework)
 - [ ] Phase 7 — Cars (15 vehicles, theft, ownership, melting → bullets)
 - [ ] Phase 8 — Co-op crimes (4-hour jobs, 6-player teams, roles)

@@ -6,6 +6,8 @@ import { meRoutes } from './routes/me';
 import { playerRoutes } from './routes/players';
 import { statesRoutes } from './routes/states';
 import { crimeRoutes } from './routes/crimes';
+import { ranksRoutes } from './routes/ranks';
+import { weaponsRoutes } from './routes/weapons';
 
 const app = Fastify({ logger: true });
 
@@ -22,6 +24,8 @@ async function main() {
   await app.register(playerRoutes);
   await app.register(statesRoutes);
   await app.register(crimeRoutes);
+  await app.register(ranksRoutes);
+  await app.register(weaponsRoutes);
 
   app.setErrorHandler((error, request, reply) => {
     request.log.error(error);

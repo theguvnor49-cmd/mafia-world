@@ -70,3 +70,12 @@ export const GTA = {
   FAILURE_JAIL_SECONDS_MIN: 60,
   FAILURE_JAIL_SECONDS_MAX: 120,
 };
+
+/** Bullet calculator (brief section 12) — MIN_BULLETS is "max(25, ...)"
+ * directly from the brief, not a placeholder. Gun/armour catalog values
+ * (multiplier, bonus, price) live in the `guns`/`armour` tables, not here —
+ * see 005_weapons.sql — so they can be tuned with an UPDATE, no deploy
+ * needed, same reasoning as the `states` catalog. */
+export const BULLET_CALC = {
+  MIN_BULLETS: 25,
+};

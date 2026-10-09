@@ -12,6 +12,8 @@ interface MeData {
   mafia_xp: number;
   rank: string;
   bullets: number;
+  equippedGun: { name: string; bulletMultiplier: number } | null;
+  equippedArmour: { name: string; bonusBullets: number; multiplier: number } | null;
   heat: number;
   status: 'ALIVE' | 'DEAD' | 'JAIL' | 'HOSPITAL';
 }
@@ -59,6 +61,11 @@ export default function Dashboard() {
           <Stat label="Mafia XP" value={me.mafia_xp.toLocaleString()} />
           <Stat label="Bullets" value={me.bullets.toLocaleString()} />
           <Stat label="Heat" value={`${me.heat} / 100`} />
+          <Stat label="Gun" value={me.equippedGun ? `${me.equippedGun.name} (${me.equippedGun.bulletMultiplier.toFixed(2)}x)` : 'None'} />
+          <Stat
+            label="Armour"
+            value={me.equippedArmour ? `${me.equippedArmour.name} (+${me.equippedArmour.bonusBullets})` : 'None'}
+          />
         </div>
 
         <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
@@ -68,11 +75,14 @@ export default function Dashboard() {
           <Link href="/mafia/crimes" style={navLinkStyle}>
             Crimes →
           </Link>
+          <Link href="/mafia/armoury" style={navLinkStyle}>
+            Armoury →
+          </Link>
         </div>
 
         <p style={{ marginTop: 20, color: '#666', fontSize: 13 }}>
-          Hunting, guns, armour, gangs and everything else in the brief land in later phases —
-          this dashboard will grow with them.
+          Hunting, gangs and everything else in the brief land in later phases — this dashboard
+          will grow with them.
         </p>
 
         <button onClick={() => { clearToken(); router.push('/'); }} style={logoutStyle}>

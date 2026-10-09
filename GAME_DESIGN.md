@@ -4,7 +4,7 @@ Living design doc. This is the source of truth for game mechanics — if a new
 feature would conflict with something written here, that gets flagged and
 discussed before changing it. Update this file as each phase is built.
 
-**Status:** Phases 1–3 complete. See `TODO.md` for what's built vs. designed-only.
+**Status:** Phases 1–4 complete. See `TODO.md` for what's built vs. designed-only.
 
 ---
 
@@ -122,31 +122,46 @@ code that uses it.
 | 9 | Don | 250,000 | 820 |
 | 10 | Legend | 500,000 | 1,050 |
 
-## 10. Guns (Phase 4 — not yet built)
+`GET /api/v1/ranks` (new in Phase 4) exposes this whole table publicly so
+the bullet calculator's frontend can offer a target-rank dropdown without
+hardcoding the numbers twice.
 
-| Gun | Bullet multiplier |
-|-----|--------------------|
-| Pocket Pistol | 1.10x |
-| 9mm | 1.00x |
-| SMG | 0.88x |
-| Assault Rifle | 0.78x |
-| Sniper Rifle | 0.70x |
+## 10. Guns (implemented — `guns` table, `GET/POST /api/v1/mafia/weapons/guns...`)
 
-Lower multiplier = fewer bullets needed to kill. Each gun: id, name, bullet
-multiplier, price, optional description, optional rank requirement.
+| Gun | Bullet multiplier | Price (placeholder) |
+|-----|--------------------|----------------------|
+| Pocket Pistol | 1.10x | $2,000 |
+| 9mm | 1.00x | $6,000 |
+| SMG | 0.88x | $18,000 |
+| Assault Rifle | 0.78x | $45,000 |
+| Sniper Rifle | 0.70x | $100,000 |
 
-## 11. Armour (Phase 4 — not yet built)
+Lower multiplier = fewer bullets needed to kill. `users.equipped_gun` is now
+a real foreign key into `guns(name)` (it was free text since Phase 1,
+specifically so this could happen without touching the column). **Prices
+aren't in the brief** — the table above is an MVP placeholder, roughly
+scaled so better guns cost more; trivially changed with an `UPDATE`.
 
-| Armour | Bonus bullets | Multiplier |
-|--------|---------------|------------|
-| Light Vest | +40 | 1.10x |
-| Kevlar Kit | +90 | 1.20x |
-| Heavy Plates | +160 | 1.35x |
+No gun currently has a rank requirement (the brief says each gun *may*
+optionally have one, but gives no actual values) — all 5 are purchasable
+from Rookie onward. Buying a gun immediately equips it; there's no
+locker/inventory, so previously-owned guns aren't kept around to switch
+back to for free. Doesn't require being ALIVE — it's a pure cash
+transaction, unlike crimes.
+
+## 11. Armour (implemented — `armour` table, `GET/POST /api/v1/mafia/weapons/armour...`)
+
+| Armour | Bonus bullets | Multiplier | Price (placeholder) |
+|--------|---------------|------------|----------------------|
+| Light Vest | +40 | 1.10x | $4,000 |
+| Kevlar Kit | +90 | 1.20x | $15,000 |
+| Heavy Plates | +160 | 1.35x | $45,000 |
 
 Armour belongs to the defender and increases the bullets needed to kill
-them. Later: durability, damage reduction, repair, armour classes.
+them. Same FK/price/buy-equips-immediately notes as guns, above. Later:
+durability, damage reduction, repair, armour classes.
 
-## 12. Bullet calculator (Phase 4 — not yet built)
+## 12. Bullet calculator (implemented — `mafia/bulletCalculator.ts`, `GET /api/v1/mafia/weapons/calculator`)
 
 ```
 gunApplied = targetRankBaseBullets × gunMultiplier
@@ -155,8 +170,16 @@ final      = withArmor × armourMultiplier
 result     = max(25, round(final))
 ```
 
-The server calculates the real number; a frontend calculator is
-informational only. Combat is never client-authoritative.
+`25` is from the brief directly, not a placeholder. `calculateBulletsToKill`
+is pure and catalog-agnostic — it takes plain numbers, not a player/gun/
+armour row — specifically so Phase 5's real kill resolution can call the
+exact same function instead of a second implementation that could drift
+from this one. The server calculates the real number; the Phase 4
+calculator endpoint is informational only and doesn't look up any real
+player — it answers "what if," for a hypothetical gun/armour/rank
+combination, never "what would it take to kill `<username>`." Combat
+itself (and any calculator grounded in a real target) is never
+client-authoritative and isn't built until Phase 5.
 
 ## 13. Hunt / search (Phase 5 — not yet built)
 
@@ -387,6 +410,19 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
    as vitest (not as a standalone script). Do that first via the README's
    "Running it locally" steps (or once deployed to Render/Vercel) and
    report back anything that breaks.
+7. **Gun/armour prices.** Not specified anywhere in the brief (which only
+   gives combat multipliers/bonuses) — section 10/11 above has the MVP
+   placeholders currently seeded in `005_weapons.sql`. Easy to change with
+   an `UPDATE`, no code or deploy involved.
+8. **No locker/inventory for guns or armour.** Buying immediately equips;
+   there's no record of gear you've previously owned to switch back to for
+   free. Matches the single `equipped_gun`/`equipped_armour` columns that
+   have existed since Phase 1. An inventory table is a reasonably easy
+   addition later if a kept locker is wanted instead of buy-equips-ever.
+9. **Purchases don't increment `cash_lost`.** That statistic (brief section
+   36) reads as being for involuntary losses (robbed, fined, etc.); a gun/
+   armour purchase is voluntary spending, so it's left out. There's no
+   `cash_spent` counter yet — easy to add if that distinction matters later.
 
 None of these block Phase 1; they're flagged here so they get a real
 decision (not just an assumption baked in silently) before the phases that
