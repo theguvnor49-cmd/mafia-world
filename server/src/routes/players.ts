@@ -18,6 +18,7 @@ interface PublicUserRow {
   kills: number;
   deaths: number;
   jail_seconds_served: string;
+  times_arrested: number;
   successful_busts: number;
   failed_busts: number;
 }
@@ -37,7 +38,7 @@ export async function playerRoutes(app: FastifyInstance) {
     const result = await pool.query<PublicUserRow>(
       `SELECT username, state, mafia_xp, cash, dead_until, jail_until, hospital_until,
               crimes_committed, crimes_succeeded, crimes_failed, kills, deaths,
-              jail_seconds_served, successful_busts, failed_busts
+              jail_seconds_served, times_arrested, successful_busts, failed_busts
        FROM users WHERE lower(username) = lower($1)`,
       [username]
     );
@@ -65,6 +66,7 @@ export async function playerRoutes(app: FastifyInstance) {
           kills: user.kills,
           deaths: user.deaths,
           jailSecondsServed: Number(user.jail_seconds_served),
+          timesArrested: user.times_arrested,
           successfulBusts: user.successful_busts,
           failedBusts: user.failed_busts,
         },

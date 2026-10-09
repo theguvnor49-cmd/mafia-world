@@ -10,6 +10,7 @@ import { ranksRoutes } from './routes/ranks';
 import { weaponsRoutes } from './routes/weapons';
 import { pvpRoutes } from './routes/pvp';
 import { witnessRoutes } from './routes/witness';
+import { jailRoutes } from './routes/jail';
 
 const app = Fastify({ logger: true });
 
@@ -30,6 +31,7 @@ async function main() {
   await app.register(weaponsRoutes);
   await app.register(pvpRoutes);
   await app.register(witnessRoutes);
+  await app.register(jailRoutes);
 
   app.setErrorHandler((error, request, reply) => {
     request.log.error(error);

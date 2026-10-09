@@ -60,19 +60,28 @@ Tracks build status against the 15 phases in `GAME_DESIGN.md`. Keep this updated
 - [x] Fixed a real gap while building this: `GET /api/v1/me` was querying `dead_until`/`jail_until`/`hospital_until` but never returning them (only the derived `status` string) — the new DEAD banner needs the actual timestamp, so it's now returned as `deadUntil`/`jailUntil`/`hospitalUntil`.
 - [x] Verified every migration via `psql` as usual, **plus** two full manual dry-runs of every SQL statement in the kill transaction and the witness buy/sell transaction against real seeded rows (correct bullet math end to end: 120 base × 1.00 gun + 40 armour bonus × 1.10 armour multiplier = 176; correct cash movement on a witness sale) — this phase's transactions are complex enough that syntax-checking alone didn't feel like enough.
 
+**Phase 6 — Police (jail bust-outs)**
+- [x] Jail itself (`jail_until`, 60–120s on a failed GTA, `jail_seconds_served`/`times_arrested` tracking) was already built in Phase 3/2 — this phase is specifically the bust-*out* action.
+- [x] `007_busts.sql` — `busts` log table (buster, prisoner, success, cash_reward, state, timestamp). No new `users` columns needed; `jail_until`/`successful_busts`/`failed_busts` have existed since Phase 1/2.
+- [x] `server/src/mafia/jail/bust.ts` — `getBustSuccessChance`, `getBustReward`, `resolveBust`, pure and config-driven, every value straight from the brief (no placeholders, unlike GTA)
+- [x] `POST /api/v1/mafia/jail/bust` — locks buster + prisoner in sorted-id order (same deadlock-safe pattern as the Phase 5 kill transaction), checks buster ALIVE / prisoner actually JAIL / same state / no self-busts, applies the cash reward + stat increments on success or just `failed_busts` on failure, logs every attempt
+- [x] Fixed a small real gap while building this: the *public* player profile endpoint returned `successfulBusts`/`failedBusts`/`jailSecondsServed` but not `timesArrested`, even though brief section 26 lists all four as profile-displayable. Added.
+- [x] Frontend: `/mafia/bust` (username input, attempt, local activity log, own bust stats); dashboard gained a jail banner with a live mm:ss countdown matching the brief's own section 24 mockup; profile page gained a "Times Arrested" stat
+- [x] `bust.test.ts` added; same actually-executed-in-a-scratchpad-script verification as every prior phase's pure logic (17 assertions, including a 50k-trial empirical-rate sanity sweep)
+- [x] Verified the migration via `psql` as usual, **plus** a full manual dry-run of both the success and failure branches of the bust transaction against real seeded rows (confirmed: success frees the prisoner and pays the exact scaled reward; failure leaves the prisoner jailed and moves no cash either direction) — explicitly rolled back, residue confirmed zero afterward
+
 **Not yet verified for any phase:** a full `npm install` + running-server + HTTP round-trip test, and running the vitest suites *as vitest* rather than as a standalone script. This cloud sandbox's network policy blocks `registry.npmjs.org` (confirmed twice now, in two separate sessions a few weeks apart — once as an explicit "host not allowed"/"organization policy" denial, once as outright DNS failure) and the internal mirror needs credentials this session doesn't have — see "Open questions" in `GAME_DESIGN.md`. The code is written and reviewed carefully, but treat the first real `npm install && npm run dev` (by you, or once pushed to Render/Vercel) as the real first run.
 
 ## In progress
 
-- [ ] None right now. Phases 1-5 are all committed; see the message alongside this update for where things stand and what's worth a look before continuing further.
+- [ ] None right now. Phases 1-6 are all committed; see the message alongside this update for where things stand.
 
 ## Next
 
-- [ ] Phase 6 — Police (jail bust-outs, jail statistics, government framework)
+- [ ] Phase 7 — Cars (15 vehicles, theft, ownership, melting → bullets)
 - [ ] **Deployment walkthrough** (Step 8 of the original brief): GitHub repo → Supabase (Postgres) → Render (backend) → Vercel (frontend), one exact step at a time.
 
 ## Future (not started)
-- [ ] Phase 7 — Cars (15 vehicles, theft, ownership, melting → bullets)
 - [ ] Phase 8 — Co-op crimes (4-hour jobs, 6-player teams, roles)
 - [ ] Phase 9 — Hospital (recovery, activities)
 - [ ] Phase 10 — Gangs (max 10, roles, treasury, territory, destruction)

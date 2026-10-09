@@ -2,7 +2,7 @@
 
 A persistent, browser-based, text-driven multiplayer mafia/crime game. See [`GAME_DESIGN.md`](./GAME_DESIGN.md) for the full design spec and [`TODO.md`](./TODO.md) for build status.
 
-This repo is being built in phases with Claude acting as lead developer. **Phase 1 (Foundation) is complete**: repo structure, database migrations, authentication (register/login/JWT), a health endpoint, and a minimal dashboard.
+This repo is being built in phases with Claude acting as lead developer. **Phases 1–6 are complete**: foundation (auth, health check, dashboard), core player (ranks, states, public profiles), crime (Grand Theft Auto, heat), weapons (guns, armour, bullet calculator), PvP (hunt/search, kill resolution, death/revive, witness statements), and police (jail bust-outs). See `TODO.md` for the live, detailed status and `GAME_DESIGN.md` for how each system works.
 
 ## Stack
 
@@ -85,14 +85,18 @@ Open `http://localhost:3000`, click **Create Character**, register an account, a
 
 ## What's implemented so far
 
-- `GET /health` — liveness check
-- `POST /api/v1/auth/register` — create a character (username, email, password)
-- `POST /api/v1/auth/login` — log in with username-or-email + password
-- `GET /api/v1/me` — the authenticated player's current state (auth required via `Authorization: Bearer <token>`)
-- A minimal dashboard at `/mafia` showing cash, premium points, mafia XP, bullets, heat, state and status (ALIVE/DEAD/JAIL/HOSPITAL, derived server-side from timestamps)
+**Auth & profile:** register/login (bcrypt + JWT), `GET /api/v1/me`, public profiles at `GET /api/v1/players/:username`, 8 seeded states, 10 mafia ranks derived from XP.
 
-Nothing here trusts the client: passwords are hashed with bcrypt, sessions are JWTs verified server-side, and all player state is read from Postgres on every request.
+**Crime:** Grand Theft Auto (`/mafia/crimes`) — cooldown, success chance driven by heat and rank, cash/XP/heat rewards, jail on failure. Heat decays continuously from a timestamp, no background process.
+
+**Weapons:** 5 guns, 3 armour sets, a shop to buy/equip them (`/mafia/armoury`), and a bullet calculator using the brief's exact formula.
+
+**PvP:** search for a target (4-hour timer), then attack once you've found them and you're both still in the same state (`/mafia/hunt`); a kill puts the target in DEAD status for 24 real hours; revive early by spending premium points (`/mafia/revive`); up to 3 random online players witness a kill and can list what they saw for sale (`/mafia/witness`).
+
+**Police:** a failed crime jails you for 60-120 seconds (brief section 24, built back in Phase 3); another player can now attempt to bust you out (`/mafia/bust`) if they're in your state — base 25% success, shifting with their own bust track record, clamped 15-80%, paying them $25,000+ on success.
+
+Nothing here trusts the client: passwords are hashed with bcrypt, sessions are JWTs verified server-side, every currency/combat operation runs inside a database transaction with row locking, and all player state is read from Postgres on every request.
 
 ## Next up
 
-See `TODO.md`. Short version: once you're happy with the foundation, we walk through GitHub → Supabase → Render → Vercel to get this live on free hosting, then move to Phase 2 (full player profile, states, ranks).
+See `TODO.md`. Short version: Phase 7 (cars — theft, ownership, melting into bullets) is next, or we walk through GitHub → Supabase → Render → Vercel to get this live on free hosting first — your call. One thing worth your own look before going further: `GAME_DESIGN.md` section 16 and "Open questions" #10 flag a deliberate deviation from the brief in how selling witness information works, for currency-safety reasons — worth reading before you rely on it.

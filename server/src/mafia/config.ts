@@ -94,3 +94,17 @@ export const PVP = {
   MAX_WITNESSES: 3,
   ONLINE_WINDOW_SECONDS: 5 * 60,
 };
+
+/** Jail bust-outs (brief section 25). Every value here is taken directly
+ * from the brief — unlike GTA's rank-bonus numbers, there's no MVP
+ * placeholder needed for this system. */
+export const BUST = {
+  BASE_SUCCESS_CHANCE: 0.25,
+  SUCCESS_BONUS_PER_SUCCESSFUL_BUST: 0.02,
+  FAILURE_PENALTY_PER_FAILED_BUST: 0.01,
+  MIN_SUCCESS_CHANCE: 0.15,
+  MAX_SUCCESS_CHANCE: 0.8,
+
+  BASE_REWARD: 25_000,
+  REWARD_BONUS_PER_SUCCESSFUL_BUST: 4_000,
+};

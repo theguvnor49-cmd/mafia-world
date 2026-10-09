@@ -4,7 +4,7 @@ Living design doc. This is the source of truth for game mechanics — if a new
 feature would conflict with something written here, that gets flagged and
 discussed before changing it. Update this file as each phase is built.
 
-**Status:** Phases 1–5 complete. See `TODO.md` for what's built vs. designed-only.
+**Status:** Phases 1–6 complete. See `TODO.md` for what's built vs. designed-only.
 
 ---
 
@@ -310,14 +310,58 @@ can randomly produce one. Cars can be sold, stored, used, or melted into
 bullets — the resource loop `crime → steal → melt → bullets → PvP`.
 Balance carefully so bullets can't become infinite.
 
-## 20. Police / jail / bust-outs (Phase 6 — not yet built)
+## 20. Police / jail / bust-outs (implemented — `busts` table, `POST /api/v1/mafia/jail/bust`)
 
-Failed crimes can jail a player (`jail_until`, e.g. 60–120s on a failed
-GTA). Other players can attempt a bust-out: both must share a state, the
-buster can't bust themselves. Base success 25%, +2%/prior successful bust,
-−1%/prior failed bust, clamped 15–80%. Reward $25,000 + $4,000/prior
-successful bust. Track jail time served, successful/failed busts, times
-arrested.
+Jail itself (`jail_until`, 60–120s on a failed GTA, `jail_seconds_served` /
+`times_arrested` tracked) was actually already built in Phase 3 as part of
+crime failure — `deriveStatus()` has returned `JAIL` from day one and
+`jail_seconds_served`/`times_arrested`/`successful_busts`/`failed_busts`
+have existed as columns since Phase 2's statistics migration. What Phase 6
+adds is the bust-out *action* itself.
+
+`POST /api/v1/mafia/jail/bust` takes `{ targetUsername }` (the prisoner) and
+checks, in order: prisoner exists, buster isn't busting themselves, buster
+is ALIVE, prisoner is actually in `JAIL` status right now, and both share a
+state. Both rows are locked in the same sorted-id order as the kill
+transaction (`pvp.ts`) — not because a bust can realistically deadlock
+against anything (a jailed prisoner can't act, and self-busts are
+rejected before locking), but to keep every multi-row transaction in this
+codebase following one pattern.
+
+`mafia/jail/bust.ts` is the pure logic, mirroring `crimes/gta.ts`:
+
+- `getBustSuccessChance(priorSuccessfulBusts, priorFailedBusts)` — 25% base,
+  +2% per the *buster's own* prior successful bust, −1% per their prior
+  failed bust, clamped 15–80%. Every number here is straight from the
+  brief — no MVP placeholder needed, unlike GTA's rank bonuses.
+- `getBustReward(priorSuccessfulBusts)` — $25,000 + $4,000 per the buster's
+  prior successful bust. Paid only on success.
+- `resolveBust(...)` combines both with a single injectable `roll` for
+  deterministic testing.
+
+On success: prisoner's `jail_until` is cleared (freed immediately, however
+much time was left — the brief doesn't say to pro-rate or partially reduce
+it), buster's `cash`/`cash_earned` increase by the reward and
+`successful_busts` increments. On failure: only the buster's `failed_busts`
+increments, no cash moves either direction, and the prisoner stays jailed.
+Every attempt — success or failure — is logged to a new `busts` table
+(buster, prisoner, success, cash_reward, state, timestamp), per the brief's
+"All busts should be logged."
+
+Frontend: `/mafia/bust` — enter a username, attempt a bust, see the result
+in a local activity log (no odds preview, matching how `/mafia/crimes`
+doesn't preview GTA's success chance either). Shows the buster's own
+successful/failed bust counts and times-arrested so their changing odds are
+visible over time. The dashboard gained a jail banner — "🚔 IN JAIL — Time
+remaining: mm:ss" with a live client-side countdown — matching the brief's
+own section 24 mockup; it's purely cosmetic display, re-synced from
+`/api/v1/me`'s real `jailUntil` timestamp whenever it ticks to zero, the
+same not-authoritative-timer pattern already used for GTA's cooldown and
+hunt's search countdown. The public profile page and `/api/v1/me` both
+already returned `successfulBusts`/`failedBusts`/`jailSecondsServed` since
+Phase 2/5; `timesArrested` was missing from the *public* profile response
+specifically (brief section 26 lists it alongside the other three as
+profile-displayable) — added in this phase.
 
 ## 21. Co-op crimes (Phase 8 — not yet built)
 
@@ -494,6 +538,13 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
     travel an "eventually" feature by design, so this isn't a gap so much
     as a dependency worth knowing about before judging how PvP actually
     plays.
+14. **No cost or cooldown on a bust *attempt* itself** (section 20) — not
+    specified in the brief either way, so a buster can retry immediately
+    after a failed attempt with no penalty beyond their own worsening
+    odds (failed busts make the *next* attempt's chance slightly lower,
+    per the formula, but nothing stops attempting again instantly). Same
+    treatment as item 12's search-cost gap — flagged, not silently
+    assumed away.
 
 None of these block Phase 1; they're flagged here so they get a real
 decision (not just an assumption baked in silently) before the phases that

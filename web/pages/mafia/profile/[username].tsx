@@ -19,6 +19,7 @@ interface PlayerProfile {
     kills: number;
     deaths: number;
     jailSecondsServed: number;
+    timesArrested: number;
     successfulBusts: number;
     failedBusts: number;
   };
@@ -83,6 +84,7 @@ export default function PlayerProfilePage() {
           <Stat label="Crimes" value={profile.stats.crimesCommitted.toLocaleString()} />
           <Stat label="Successful Busts" value={profile.stats.successfulBusts.toLocaleString()} />
           <Stat label="Failed Busts" value={profile.stats.failedBusts.toLocaleString()} />
+          <Stat label="Times Arrested" value={profile.stats.timesArrested.toLocaleString()} />
           <Stat label="Jail Time Served" value={formatDuration(profile.stats.jailSecondsServed)} />
         </div>
       </div>

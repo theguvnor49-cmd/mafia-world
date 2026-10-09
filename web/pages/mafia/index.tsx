@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { apiFetch, clearToken, getToken } from '../../lib/api';
@@ -17,28 +17,62 @@ interface MeData {
   heat: number;
   status: 'ALIVE' | 'DEAD' | 'JAIL' | 'HOSPITAL';
   deadUntil: string | null;
+  jailUntil: string | null;
+}
+
+/** mm:ss — matches the brief's own jail mockup ("Time remaining: 01:12"),
+ * unlike the dead/hospital timers which are long enough to show as a date
+ * instead (see revive.tsx). */
+function formatCountdown(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 export default function Dashboard() {
   const router = useRouter();
   const [me, setMe] = useState<MeData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [jailCountdown, setJailCountdown] = useState(0);
+
+  const loadMe = useCallback(async () => {
+    const res = await apiFetch<MeData>('/api/v1/me');
+    if (!res.ok || !res.data) {
+      clearToken();
+      setError('Session expired — redirecting to login…');
+      router.replace('/login');
+      return;
+    }
+    setMe(res.data);
+    setJailCountdown(
+      res.data.jailUntil ? Math.max(0, Math.ceil((new Date(res.data.jailUntil).getTime() - Date.now()) / 1000)) : 0
+    );
+  }, [router]);
 
   useEffect(() => {
     if (!getToken()) {
       router.replace('/login');
       return;
     }
-    apiFetch<MeData>('/api/v1/me').then((res) => {
-      if (!res.ok || !res.data) {
-        clearToken();
-        setError('Session expired — redirecting to login…');
-        router.replace('/login');
-        return;
-      }
-      setMe(res.data);
-    });
-  }, [router]);
+    loadMe();
+  }, [router, loadMe]);
+
+  // Purely cosmetic client-side tick — the server timestamp (jailUntil) is
+  // what's authoritative; this just counts down to it, then re-fetches to
+  // confirm (same pattern as crimes.tsx's cooldown and hunt.tsx's search).
+  useEffect(() => {
+    if (jailCountdown <= 0) return;
+    const id = setInterval(() => {
+      setJailCountdown((c) => {
+        if (c <= 1) {
+          loadMe();
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [jailCountdown, loadMe]);
 
   if (error) return <main style={pageStyle}><p>{error}</p></main>;
   if (!me) return <main style={pageStyle}><p>Loading…</p></main>;
@@ -64,6 +98,13 @@ export default function Dashboard() {
             <Link href="/mafia/revive" style={{ color: '#fff', fontWeight: 600, textDecoration: 'underline' }}>
               Revive
             </Link>
+          </div>
+        )}
+
+        {me.status === 'JAIL' && (
+          <div style={jailBannerStyle}>
+            <span>🚔 IN JAIL — Time remaining: {formatCountdown(jailCountdown)}</span>
+            <span style={{ color: '#ca8a04' }}>Ask another player in {me.state} to bust you out.</span>
           </div>
         )}
 
@@ -95,6 +136,9 @@ export default function Dashboard() {
           </Link>
           <Link href="/mafia/witness" style={navLinkStyle}>
             Witness statements →
+          </Link>
+          <Link href="/mafia/bust" style={navLinkStyle}>
+            Jail bust-out →
           </Link>
         </div>
 
@@ -142,6 +186,20 @@ const deadBannerStyle: CSSProperties = {
   padding: '12px 16px',
   marginBottom: 20,
   fontSize: 14,
+};
+const jailBannerStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 12,
+  background: '#26220f',
+  border: '1px solid #facc15',
+  borderRadius: 8,
+  padding: '12px 16px',
+  marginBottom: 20,
+  fontSize: 14,
+  color: '#facc15',
+  flexWrap: 'wrap',
 };
 const navLinkStyle: CSSProperties = {
   color: '#fff',
