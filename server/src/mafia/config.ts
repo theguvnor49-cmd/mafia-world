@@ -256,3 +256,58 @@ export const HOSPITAL = {
   SMALL_JOB_CASH_REWARD: 2_000,
   SMALL_JOB_XP_REWARD: 10,
 };
+
+/** Businesses & factories (brief section 25). The brief names 8 business
+ * types and four verbs (buyable/upgradeable/robbable/seizable) but gives
+ * no prices, income rates, or formulas for any of them — every number
+ * below is an MVP placeholder, scaled so later-listed/pricier types pay
+ * proportionally more per hour, same tiering spirit as the vehicle
+ * catalog's rarity tiers. See GAME_DESIGN.md section 25 for the full
+ * reasoning, including why "factories produce resources" became uniform
+ * cash income rather than a separate bullet-resource output, and why
+ * "controllable by gangs" wasn't built at all. */
+export const BUSINESSES = {
+  MAX_LEVEL: 5,
+  TYPES: [
+    { type: 'Chop Shop', basePrice: 50_000, baseIncomePerHour: 500 },
+    { type: 'Gun Shop', basePrice: 75_000, baseIncomePerHour: 750 },
+    { type: 'Garage', basePrice: 100_000, baseIncomePerHour: 1_000 },
+    { type: 'Protection Racket', basePrice: 150_000, baseIncomePerHour: 1_750 },
+    { type: 'Warehouse', basePrice: 200_000, baseIncomePerHour: 2_500 },
+    { type: 'Restaurant', basePrice: 300_000, baseIncomePerHour: 4_000 },
+    { type: 'Nightclub', basePrice: 500_000, baseIncomePerHour: 7_500 },
+    { type: 'Casino', basePrice: 750_000, baseIncomePerHour: 12_000 },
+  ] as const,
+
+  // Upgrading from level N to N+1 costs N * that type's own base price, and
+  // each level multiplies income by that same level — so income scales
+  // exactly as fast as cumulative upgrade spend, no faster.
+  UPGRADE_COST_PER_LEVEL_MULTIPLIER: 1,
+
+  // Robbery (a crime, unlike plain buy/upgrade/collect — mirrors GTA's
+  // shape: a success chance, cash/XP/heat on success, jail/XP/heat on
+  // failure). Chance depends only on the TARGET business's own level
+  // (its "security"), not the robber's rank — unlike GTA's rank bonus.
+  // Flagged in "Open questions": a robber-side rank bonus would be a
+  // reasonable addition if this ends up feeling too static as players
+  // progress.
+  ROB: {
+    BASE_CHANCE: 0.45,
+    LEVEL_PENALTY_PER_LEVEL_ABOVE_ONE: 0.06,
+    MIN_CHANCE: 0.1,
+    MAX_CHANCE: 0.6,
+    COOLDOWN_SECONDS: 10 * 60,
+
+    SUCCESS_XP_MIN: 15,
+    SUCCESS_XP_MAX: 40,
+    SUCCESS_HEAT_MIN: 8,
+    SUCCESS_HEAT_MAX: 16,
+
+    FAILURE_XP_MIN: 4,
+    FAILURE_XP_MAX: 12,
+    FAILURE_HEAT_MIN: 8,
+    FAILURE_HEAT_MAX: 18,
+    FAILURE_JAIL_SECONDS_MIN: 60,
+    FAILURE_JAIL_SECONDS_MAX: 120,
+  },
+};

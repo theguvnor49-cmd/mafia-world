@@ -316,6 +316,18 @@ export async function pvpRoutes(app: FastifyInstance) {
         );
         await client.query('UPDATE users SET dead_until = $1, deaths = deaths + 1 WHERE id = $2', [deadUntil, targetId]);
 
+        // Businesses & factories (brief section 25, Phase 11): dying drops
+        // every business the target owns — ownerless rows become
+        // seizable (routes/businesses.ts's `seize`). Reset the accrual
+        // clock here too, so nobody can profit from the dead owner's
+        // unclaimed backlog while it sits ownerless; the eventual seizer
+        // starts fresh. Same transaction as the kill itself, so a death
+        // and its business fallout always land atomically together.
+        await client.query('UPDATE businesses SET owner_id = NULL, last_collected_at = $1 WHERE owner_id = $2', [
+          now,
+          targetId,
+        ]);
+
         const killInsert = await client.query<{ id: string }>(
           'INSERT INTO kills (attacker_id, target_id, state, bullets_used) VALUES ($1, $2, $3, $4) RETURNING id',
           [attackerId, targetId, revealedState, bulletsNeeded]

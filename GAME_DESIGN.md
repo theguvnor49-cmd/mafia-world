@@ -4,7 +4,7 @@ Living design doc. This is the source of truth for game mechanics — if a new
 feature would conflict with something written here, that gets flagged and
 discussed before changing it. Update this file as each phase is built.
 
-**Status:** Phases 1–10 complete. See `TODO.md` for what's built vs. designed-only.
+**Status:** Phases 1–11 complete. See `TODO.md` for what's built vs. designed-only.
 
 ---
 
@@ -709,12 +709,89 @@ don't exist yet (Phase 11); nothing to hook up until that table does.
   are live `COUNT`/`SUM` joins on read (`GET /gangs` and `GET
   /gangs/:name`), the same principle as leadership above.
 
-## 25. Businesses & factories (Phase 11 — not yet built)
+## 25. Businesses & factories (implemented)
 
-Nightclub, restaurant, casino, garage, warehouse, gun shop, chop shop,
-protection racket. Buyable/upgradeable/robbable/seizable, dropped on death,
-controllable by gangs. Factories produce resources on a timestamp basis
-(never in-memory timers) — e.g. a bullet factory producing N/hour.
+Eight catalog types (Nightclub, Restaurant, Casino, Garage, Warehouse,
+Gun Shop, Chop Shop, Protection Racket — `BUSINESSES.TYPES` in
+`config.ts`), each individually player-owned, upgradeable (levels 1-5),
+and continuously earning cash from the moment they're bought.
+`GET/POST /api/v1/mafia/businesses...` (`routes/businesses.ts`) covers the
+catalog, a public directory, "mine," buy, upgrade, collect, rob, and
+seize.
+
+- **"Factories produce resources on a timestamp basis" became uniform
+  cash accrual.** Every business's income is a pure function of elapsed
+  time since `last_collected_at` (`mafia/businesses/income.ts`'s
+  `computeAccruedCash`) — the exact "derive it from a timestamp, never a
+  running process" shape as heat decay, just counting up instead of down,
+  collected on demand (`collect`) rather than ticked by anything. The
+  brief's own example — "a bullet factory producing N/hour" — was taken as
+  illustrative, not a mandate for a literal second bullet-shaped output:
+  this game already has two bullet-acquisition paths (buying guns,
+  melting cars), the brief gives no rate/conversion for a third, and
+  building one would be exactly the kind of invented scope avoided
+  elsewhere. Flagged in "Open questions."
+- **"Controllable by gangs" was not built at all.** Businesses are
+  individually owned only — no gang linkage of any kind. The brief gives
+  no shape for what gang control would actually mean (treasury-funded
+  purchases? shared income? gang-level seizure protection?), so nothing
+  was invented, the same treatment as gangs' own "only the Boss has
+  power" simplification. `012_gangs.sql`'s header had already flagged
+  this exact gap back in Phase 10, before this table even existed.
+  Flagged in "Open questions."
+- **"Dropped on death" and "seizable" are one mechanic, read together,
+  not two.** There's no way to take a business from its *active* owner by
+  force — no PvP-vs-business-owner combat exists — only to claim one a
+  death already made ownerless. Dying sets `owner_id = NULL` on every
+  business the victim owns, inside the *same transaction* as the kill
+  itself (`routes/pvp.ts`), resetting the accrual clock at that moment so
+  nobody profits from the dead owner's unclaimed backlog while it sits
+  ownerless. `seize` then claims a NULL-owner row for free, inheriting
+  whatever level it was already upgraded to. This is exactly the "claim
+  neutral, never capture from an active holder" shape gang territory
+  already established in Phase 10 — the same judgment call, applied a
+  second time to a second system.
+- **"Robbable" is a crime, not a trade — same shape as GTA:**
+  chance-based (`mafia/businesses/rob.ts`'s `resolveBusinessRob`, the
+  same injectable-`roll` pure-function style as `resolveGta`), free to
+  attempt, cash + XP + heat on success, jail + smaller XP + heat on
+  failure, a per-robber cooldown. It targets a business's currently-
+  *accrued* income — exactly what a legitimate `collect` would also
+  claim — never the owner's actual cash balance, so an owner who collects
+  often is a much thinner target than one who doesn't. That risk/reward
+  dynamic wasn't separately designed; it falls straight out of rob and
+  collect sharing one formula. Success chance depends only on the target
+  business's own level (its "security"), not the robber's rank, unlike
+  GTA's rank bonus — flagged in "Open questions" as a possible later
+  addition.
+- **At most one business of each type per owner** — an MVP cap (the
+  brief doesn't say) preventing one rich player from buying unlimited
+  Casinos and snowballing income without bound. A real DB constraint
+  (`idx_businesses_one_per_type_per_owner`, a partial unique index on
+  `(owner_id, type) WHERE owner_id IS NOT NULL`), not app logic — checked
+  on both `buy` and `seize`. Unlike the 10-gang cap, this needs no
+  dedicated mutex row: it's a uniqueness rule on a specific (owner, type)
+  pair, not a global `COUNT(*)` threshold a phantom INSERT could slip
+  past, so a plain unique index already closes the race on its own.
+- **Rob and seize require being in the business's own state** (set once,
+  at purchase/seizure, to the buyer's current state) — mirrors the kill
+  transaction's attacker/target state check exactly, same "ready for
+  travel, near-no-op until travel ships" caveat as "Open questions" #13.
+- **Buy/upgrade/collect don't require being ALIVE; rob/seize do.** The
+  first three are pure cash transactions on an owned asset — same
+  reasoning as guns/armour/vehicle purchases, none of which require
+  ALIVE either. Rob and seize are physical, location-based actions, the
+  same category as hunt/kill/bust, which all do require it.
+- **One shared log table, `business_events`**, an `event_type` enum
+  column (buy/upgrade/collect/rob_success/rob_fail/seize) rather than the
+  per-game `detail` JSONB shape `gambling_bets` uses — picked because
+  every business event shares the exact same columns (who, which
+  business, cash, XP), unlike gambling's very game-specific payloads.
+  Business robbery doesn't touch the original 14-stat block
+  (`crimes_committed` and friends) — that block is scoped to GTA/combat/
+  jail in the brief's own section 36, and gambling/hospital didn't extend
+  it either; `business_events` is this activity's own history, the same
+  "new activity, new log table" treatment every prior phase has used.
 
 ## 26. Player profile & statistics (implemented)
 
@@ -812,7 +889,7 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
 
 1. Foundation 2. Core player 3. Crime 4. Weapons 5. PvP 6. Police
 7. Cars (implemented) 8. Co-op (implemented) 9. Hospital (implemented)
-10. Gambling + Gangs (implemented) 11. Businesses/factories
+10. Gambling + Gangs (implemented) 11. Businesses/factories (implemented)
 12. Economy/balancing 13. Admin tools 14. Polish 15. Production deployment
 
 ---
@@ -991,6 +1068,33 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
     succession-on-inactivity mechanic. Fine for an MVP where a Boss
     presumably keeps playing, but worth a second look if an abandoned gang
     with no active Boss turns out to be a real scenario.
+26. **Businesses: "factories produce resources" became uniform cash
+    income, not a separate bullet-producing factory** (section 25) — the
+    brief's "e.g. a bullet factory producing N/hour" was read as an
+    example of the timestamp-accrual *mechanism*, not a mandate for a
+    third bullet-acquisition path alongside buying guns and melting cars.
+    Worth a second look if a dedicated resource-producing (not just cash-
+    producing) business type turns out to matter.
+27. **Businesses: "controllable by gangs" was not built at all** (section
+    25) — businesses are purely individually owned; there's no treasury-
+    funded purchase, shared income, or gang-level protection of any kind.
+    The brief gives no shape for what gang control would mean, so none
+    was guessed at. The most speculative of this phase's gaps — worth a
+    real design pass, not just a numeric retune, before building it.
+28. **Businesses: rob's success chance has no robber-side rank bonus**
+    (section 25) — unlike GTA, which gets easier as the attacker ranks
+    up, robbing a business only gets *harder* as the target's own level
+    rises. A rank-based bonus for the robber (mirroring GTA) would be a
+    reasonable addition if this ends up feeling too static as players
+    progress.
+29. **Businesses: no cap on total businesses in the world**, only the
+    per-owner one-of-each-type cap (section 25) — unlike gangs' hard
+    limit of 10, there's no ceiling on how many businesses can exist
+    overall as the playerbase grows. Not expected to matter at any
+    realistic MVP scale, but worth knowing about before assuming the
+    `GET /businesses` directory will always stay small enough to return
+    unpaginated (every other "list everything" endpoint in this codebase
+    — gangs, cars — shares that same no-pagination assumption).
 
 None of these block Phase 1; they're flagged here so they get a real
 decision (not just an assumption baked in silently) before the phases that

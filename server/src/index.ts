@@ -17,6 +17,7 @@ import { tickRoutes } from './routes/tick';
 import { hospitalRoutes } from './routes/hospital';
 import { gamblingRoutes } from './routes/gambling';
 import { gangRoutes } from './routes/gangs';
+import { businessRoutes } from './routes/businesses';
 
 const app = Fastify({ logger: true });
 
@@ -44,6 +45,7 @@ async function main() {
   await app.register(hospitalRoutes);
   await app.register(gamblingRoutes);
   await app.register(gangRoutes);
+  await app.register(businessRoutes);
 
   app.setErrorHandler((error, request, reply) => {
     request.log.error(error);

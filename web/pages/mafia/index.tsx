@@ -210,10 +210,13 @@ export default function Dashboard() {
           <Link href="/mafia/gangs" style={navLinkStyle}>
             Gangs →
           </Link>
+          <Link href="/mafia/businesses" style={navLinkStyle}>
+            Businesses →
+          </Link>
         </div>
 
         <p style={{ marginTop: 20, color: '#666', fontSize: 13 }}>
-          Businesses and everything else in the brief land in later phases — this dashboard will
+          Economy balancing, admin tools, and polish land in later phases — this dashboard will
           grow with them.
         </p>
 
