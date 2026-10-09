@@ -82,7 +82,8 @@ export default function RevivePage() {
             )}
             <p style={{ fontSize: 14, margin: '0 0 16px' }}>
               You have <strong>{me.premium_points}</strong> premium points. Reviving costs{' '}
-              <strong>{REVIVE_COST}</strong>.
+              <strong>{REVIVE_COST}</strong> and skips the hospital recovery stage too — you&apos;re
+              back to fully <strong>ALIVE</strong> immediately, not just un-dead.
             </p>
             <button
               onClick={revive}

@@ -18,15 +18,31 @@ interface MeData {
   status: 'ALIVE' | 'DEAD' | 'JAIL' | 'HOSPITAL';
   deadUntil: string | null;
   jailUntil: string | null;
+  hospitalUntil: string | null;
 }
 
-/** mm:ss — matches the brief's own jail mockup ("Time remaining: 01:12"),
- * unlike the dead/hospital timers which are long enough to show as a date
- * instead (see revive.tsx). */
+/** mm:ss — matches the brief's own jail mockup ("Time remaining: 01:12").
+ * Death (24h) is still long enough to just show as a target date instead
+ * (see the DEAD banner below, and revive.tsx) — hospital's shorter window
+ * gets its own live h:mm:ss countdown just below, via
+ * `formatHospitalCountdown`. */
 function formatCountdown(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);
   const s = totalSeconds % 60;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+/** h:mm:ss — hospital's recovery window (up to a couple of hours) is long
+ * enough that plain mm:ss (fine for jail's 60-120s) would show an odd
+ * triple-digit minute count instead. Same format co-op.tsx already uses
+ * for its own multi-hour timer. */
+function formatHospitalCountdown(totalSeconds: number): string {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
 export default function Dashboard() {
@@ -34,6 +50,7 @@ export default function Dashboard() {
   const [me, setMe] = useState<MeData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [jailCountdown, setJailCountdown] = useState(0);
+  const [hospitalCountdown, setHospitalCountdown] = useState(0);
 
   const loadMe = useCallback(async () => {
     const res = await apiFetch<MeData>('/api/v1/me');
@@ -46,6 +63,9 @@ export default function Dashboard() {
     setMe(res.data);
     setJailCountdown(
       res.data.jailUntil ? Math.max(0, Math.ceil((new Date(res.data.jailUntil).getTime() - Date.now()) / 1000)) : 0
+    );
+    setHospitalCountdown(
+      res.data.hospitalUntil ? Math.max(0, Math.ceil((new Date(res.data.hospitalUntil).getTime() - Date.now()) / 1000)) : 0
     );
   }, [router]);
 
@@ -73,6 +93,22 @@ export default function Dashboard() {
     }, 1000);
     return () => clearInterval(id);
   }, [jailCountdown, loadMe]);
+
+  // Same pattern as the jail countdown just above, for the hospital
+  // recovery timer (Phase 9).
+  useEffect(() => {
+    if (hospitalCountdown <= 0) return;
+    const id = setInterval(() => {
+      setHospitalCountdown((c) => {
+        if (c <= 1) {
+          loadMe();
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [hospitalCountdown, loadMe]);
 
   if (error) return <main style={pageStyle}><p>{error}</p></main>;
   if (!me) return <main style={pageStyle}><p>Loading…</p></main>;
@@ -105,6 +141,15 @@ export default function Dashboard() {
           <div style={jailBannerStyle}>
             <span>🚔 IN JAIL — Time remaining: {formatCountdown(jailCountdown)}</span>
             <span style={{ color: '#ca8a04' }}>Ask another player in {me.state} to bust you out.</span>
+          </div>
+        )}
+
+        {me.status === 'HOSPITAL' && (
+          <div style={hospitalBannerStyle}>
+            <span>🏥 RECOVERING — {formatHospitalCountdown(hospitalCountdown)} left</span>
+            <Link href="/mafia/hospital" style={{ color: '#fff', fontWeight: 600, textDecoration: 'underline' }}>
+              Speed it up →
+            </Link>
           </div>
         )}
 
@@ -145,6 +190,9 @@ export default function Dashboard() {
           </Link>
           <Link href="/mafia/co-op" style={navLinkStyle}>
             Co-op heist →
+          </Link>
+          <Link href="/mafia/hospital" style={navLinkStyle}>
+            Hospital →
           </Link>
         </div>
 
@@ -205,6 +253,20 @@ const jailBannerStyle: CSSProperties = {
   marginBottom: 20,
   fontSize: 14,
   color: '#facc15',
+  flexWrap: 'wrap',
+};
+const hospitalBannerStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 12,
+  background: '#131c26',
+  border: '1px solid #60a5fa',
+  borderRadius: 8,
+  padding: '12px 16px',
+  marginBottom: 20,
+  fontSize: 14,
+  color: '#60a5fa',
   flexWrap: 'wrap',
 };
 const navLinkStyle: CSSProperties = {

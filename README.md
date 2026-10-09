@@ -2,7 +2,7 @@
 
 A persistent, browser-based, text-driven multiplayer mafia/crime game. See [`GAME_DESIGN.md`](./GAME_DESIGN.md) for the full design spec and [`TODO.md`](./TODO.md) for build status.
 
-This repo is being built in phases with Claude acting as lead developer. **Phases 1–8 are complete**: foundation (auth, health check, dashboard), core player (ranks, states, public profiles), crime (Grand Theft Auto, heat), weapons (guns, armour, bullet calculator), PvP (hunt/search, kill resolution, death/revive, witness statements), police (jail bust-outs), cars (vehicle theft, ownership, melting into bullets), and co-op crimes (4-hour team jobs, up to 6 players, flat cash+XP payout). See `TODO.md` for the live, detailed status and `GAME_DESIGN.md` for how each system works.
+This repo is being built in phases with Claude acting as lead developer. **Phases 1–9 are complete**: foundation (auth, health check, dashboard), core player (ranks, states, public profiles), crime (Grand Theft Auto, heat), weapons (guns, armour, bullet calculator), PvP (hunt/search, kill resolution, death/revive, witness statements), police (jail bust-outs), cars (vehicle theft, ownership, melting into bullets), co-op crimes (4-hour team jobs, up to 6 players, flat cash+XP payout), and hospital recovery (a shorter second stage after death, with treatment/gambling/small-job activities to pass the time). See `TODO.md` for the live, detailed status and `GAME_DESIGN.md` for how each system works.
 
 ## Stack
 
@@ -99,8 +99,10 @@ Open `http://localhost:3000`, click **Create Character**, register an account, a
 
 **Co-op crimes:** every 4 hours, one job opens somewhere (`/mafia/co-op`) — up to 6 players join in, optionally picking a flavor role, and everyone still in when the 4-hour timer runs out splits nothing and instead *each* gets the full $250,000 + bonus XP. No running scheduler anywhere: creation and payout both happen lazily, the first time anyone checks status, joins, or the protected `/internal/tick` endpoint is pinged.
 
+**Hospital:** dying without paying to revive no longer falls straight through to ALIVE after 24 hours — it now lands in the hospital for a shorter recovery window first (`/mafia/hospital`). Pay cash for medical treatment to cut the wait, take a capped 50/50 gamble to pass the time, or pick up a small no-risk job for pocket change. Premium-point revive is unchanged and still skips straight to fully ALIVE, bypassing this stage entirely.
+
 Nothing here trusts the client: passwords are hashed with bcrypt, sessions are JWTs verified server-side, every currency/combat operation runs inside a database transaction with row locking, and all player state is read from Postgres on every request.
 
 ## Next up
 
-See `TODO.md`. Continuing straight through Phase 9 (hospital) and onward — no more per-phase pauses unless something genuinely needs a decision only you can make. Two things worth your own look whenever you do stop to review: `GAME_DESIGN.md` section 16 and "Open questions" #10 flag a deliberate deviation from the brief in how selling witness information works, for currency-safety reasons; and "Open questions" #16 flags that co-op crimes run as one global job rather than one per state, also a deliberate reading of an underspecified brief section.
+See `TODO.md`. Continuing straight through Phase 10 (gambling + gangs) and onward — no more per-phase pauses unless something genuinely needs a decision only you can make. Three things worth your own look whenever you do stop to review: `GAME_DESIGN.md` section 16 and "Open questions" #10 flag a deliberate deviation from the brief in how selling witness information works, for currency-safety reasons; "Open questions" #16 flags that co-op crimes run as one global job rather than one per state; and "Open questions" #18 flags the biggest judgment call yet — the brief never actually says what sends a player to the hospital, so Phase 9 made it the free path's second stage after death rather than something combat causes directly.

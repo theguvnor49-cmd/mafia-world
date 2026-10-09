@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { env } from './config';
 import { pool } from './db';
+import { settleDeathIntoHospital } from './mafia/hospital/settle';
 
 const SALT_ROUNDS = 10;
 
@@ -65,4 +66,13 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply):
       request.user.userId,
     ])
     .catch((err) => request.log.error(err, 'Failed to refresh last_seen'));
+
+  // Phase 9's hospital system (brief section 22) needs every protected
+  // route to see an up-to-date status, so — unlike the last_seen refresh
+  // above — this one IS awaited: a route handler reading `hospital_until`
+  // moments after this must see the post-transition value, not a stale
+  // one. See `settleDeathIntoHospital`'s own doc comment for why this
+  // lives in `mafia/` and gets called from here rather than from each
+  // route individually.
+  await settleDeathIntoHospital(pool, request.user.userId);
 }

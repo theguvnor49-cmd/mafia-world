@@ -4,7 +4,7 @@ Living design doc. This is the source of truth for game mechanics — if a new
 feature would conflict with something written here, that gets flagged and
 discussed before changing it. Update this file as each phase is built.
 
-**Status:** Phases 1–8 complete. See `TODO.md` for what's built vs. designed-only.
+**Status:** Phases 1–9 complete. See `TODO.md` for what's built vs. designed-only.
 
 ---
 
@@ -230,9 +230,17 @@ amount — there's no "missed shots" mechanic yet to tell them apart.
 
 Death lasts 24 hours (`dead_until = now() + 24h`). Revive costs **50
 premium points** (from the brief directly) and brings the player back
-immediately (`dead_until` set to `NULL`). Real-money purchases are out of
-scope for now; for testing, points are simply granted/admin-controlled.
-Dashboard shows a banner with a link to `/mafia/revive` while dead.
+immediately, skipping both death *and* the hospital recovery stage below
+(`dead_until` set to `NULL`, `hospital_until` never touched since it was
+never set). Real-money purchases are out of scope for now; for testing,
+points are simply granted/admin-controlled. Dashboard shows a banner with
+a link to `/mafia/revive` while dead.
+
+As of Phase 9, the *free* path out of death is different: if nobody pays
+to revive early, the 24-hour timer no longer falls straight through to
+ALIVE — it now lands in a shorter HOSPITAL recovery window first (see
+section 22). Premium-point revive is unaffected by this and still means
+"skip everything, right now."
 
 ## 16. Witness system (implemented — `witness_statements` table, `GET /api/v1/mafia/witness/me`, `POST .../sell`, `POST .../:id/buy`)
 
@@ -460,10 +468,96 @@ to trigger resolution — though the payout itself is always correct and
 already reflected in your cash/XP regardless of whether you saw the
 notice.
 
-## 22. Hospital (Phase 9 — not yet built)
+## 22. Hospital (implemented)
 
-Recovery percentage shown, small recovery activities (rest, medical
-treatment, limited gambling, small jobs) rather than a forced wait screen.
+**The one real design decision this phase needed, flagged prominently
+because it isn't a numeric placeholder like the others below:** the
+brief names hospital as one of the game's statuses and describes its
+recovery UX ("recovery percentage shown, small recovery activities...
+rather than a forced wait screen") but never actually says what *sends* a
+player there. `hospital_until` has existed on `users` since
+`001_users.sql`, flagged there as "set by future combat/events" — this
+phase had to decide what that means. Two readings were considered: (a)
+combat causes it directly — e.g. an attack that doesn't have enough
+bullets to kill wounds instead of being rejected outright — or (b) it's
+the free path's *second stage* after death. (a) would mean changing
+Phase 5's already-shipped, already-verified kill transaction's
+`NOT_ENOUGH_BULLETS` rejection into a new probabilistic branch, which is
+real surgery on code that's been working and tested since Phase 5 for no
+stated requirement. (b) is purely additive. **(b) is what's built:**
+dying and *not* paying to revive early no longer falls straight through
+to ALIVE after 24 hours — it now lands in a shorter HOSPITAL window
+first. Revisit if real play reveals the brief meant (a) instead.
+
+Mechanically: `GET /api/v1/mafia/hospital/status` (auth) returns whether
+you're currently hospitalized, the countdown, and a 0-100 recovery
+percentage (computed straight from *remaining* time against the fixed
+`HOSPITAL.RECOVERY_HOURS` config constant — `100 - secondsRemaining /
+totalSeconds * 100` — so it needs no extra "when did this start" column
+and stays correct no matter how many times treatment below has already
+shortened the stay). Three active recovery activities, all requiring
+HOSPITAL status:
+
+- **`POST .../hospital/treat`** — "medical treatment." Spends **cash**
+  (not premium points — a deliberate contrast with revive, so the two
+  currencies keep distinct jobs: premium points skip the big timer
+  entirely, cash only shortens the smaller one) to knock a fixed amount
+  off the remaining time, clamped so it can never go earlier than *now*
+  (a near-finished stay just finishes, it doesn't somehow owe you time
+  back). Repeatable for as long as it's affordable.
+- **`POST .../hospital/gamble`** — "limited gambling." An honest 50/50
+  double-or-nothing coin flip on a player-chosen bet, capped per bet
+  (`HOSPITAL.GAMBLE_MIN_BET`/`MAX_BET`) — the brief's own gambling
+  safety principle from section 23 ("never unlimited-money") applied
+  here even though that section is about the later, full Gambling phase.
+  No house edge, no streak mechanics — the simplest thing that's
+  honestly "gambling." This finally gives the `cash_lost` statistic (see
+  section 26) something to actually record: a lost bet is cash that left
+  the balance with nothing received in return, which is exactly what
+  that counter was always meant to mean, as opposed to a voluntary
+  purchase (gun, armour, car) where something of value comes back.
+- **`POST .../hospital/job`** — "small jobs." A scaled-down crime usable
+  only while hospitalized (normal GTA requires ALIVE) — fixed, small
+  cash + XP reward, always succeeds, no heat or jail risk, short
+  cooldown (`HOSPITAL.SMALL_JOB_COOLDOWN_SECONDS`). Deliberately has none
+  of GTA's stakes; it's filler for hospital downtime, not a heist.
+
+"Rest," the brief's fourth named activity, needed no endpoint — it's
+simply doing nothing while the status timer above counts down on its
+own, same as every other timer in this game.
+
+**No running scheduler needed here, unlike co-op's pattern** — this
+system doesn't create or resolve anything on a schedule, so there's
+nothing to lazily settle *except* the transition into hospital itself.
+That one transition (`mafia/hospital/settle.ts`'s `settleDeathIntoHospital`)
+runs automatically on every authenticated request, from inside
+`requireAuth` (`auth.ts` — see section 6) — not from each individual route — so by
+the time any protected handler reads a player's own status, their
+dead-to-hospital transition has already happened if it was due. The one
+place that *also* needs it explicitly is `POST /api/v1/mafia/kill`: an
+attacker's own transition is already covered by `requireAuth`, but their
+*target* isn't the one making the request, so `routes/pvp.ts` calls the
+same settle function directly on the target's locked row before checking
+whether they're still attackable — otherwise a target whose death just
+expired, who hasn't themselves made an authenticated request yet, could
+be read as still fully ALIVE instead of HOSPITAL, and get attacked again
+during that gap.
+
+**Simplifications and placeholders worth flagging** (also "Open
+questions"): every number here (`RECOVERY_HOURS` 2, `TREATMENT_COST`
+$10,000, `TREATMENT_REDUCTION_SECONDS` 30 min, `GAMBLE_MIN_BET`/`MAX_BET`
+$500-$5,000, `SMALL_JOB_CASH_REWARD`/`XP_REWARD` $2,000/10,
+`SMALL_JOB_COOLDOWN_SECONDS` 5 min) is an MVP placeholder — the brief
+gives none of them. A public profile view (`GET /players/:username`,
+unauthenticated) can show a stale DEAD status past its real expiry until
+that specific player makes their own next authenticated request, since
+nothing unauthenticated triggers the settle — the same category of
+lazy-evaluation lag already accepted for heat decay and hunt reveal, just
+newly visible on a read-only page that happens to also have a write-based
+transition behind it. `hospital_activities` logs every treat/gamble/job
+action (per-event detail); the running `cash_earned`/`cash_lost`/
+`mafia_xp` counters on `users` are what persists in aggregate, same
+division of labor as `busts`/`crimes` logging their own systems.
 
 ## 23. Gambling (Phase 10 — not yet built)
 
@@ -493,11 +587,15 @@ Never exposes email, password hash, premium points, bullets or equipped
 gear. The 14 statistics from brief section 36 (crimes committed/succeeded/
 failed, kills, deaths, bullets fired/spent, cash earned/lost, cars stolen/
 melted, jail time served, times arrested, successful/failed busts) exist
-as columns on `users`, added ahead of need in `003_player_stats.sql`. As of
-Phase 7, every one of them is actually populated by some gameplay system
-except `cash_lost` — nothing in the game yet causes an *involuntary* cash
-loss (no player-vs-player robbery exists yet; kills/busts/crimes don't
-move cash out of a victim's balance), so it still always reads 0. **Simplification:**
+as columns on `users`, added ahead of need in `003_player_stats.sql`. As
+of Phase 7, every one of them was actually populated by some gameplay
+system except `cash_lost` — nothing in the game yet caused a cash loss
+with nothing received in return (no player-vs-player robbery exists yet;
+kills/busts/crimes don't move cash out of a victim's balance), so it
+always read 0. As of Phase 9, a lost hospital gamble (section 22) finally
+populates it — the first and so far only system that takes cash away for
+nothing, which is exactly the distinction "Open questions" #9 draws
+between this counter and ordinary voluntary spending. **Simplification:**
 this is denormalized counters, not a full event-log table. Revisit as a
 real event log once the activity feed (section 44) needs per-event detail
 rather than just totals.
@@ -575,7 +673,7 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
 ## 33. Phases (see `TODO.md` for live status)
 
 1. Foundation 2. Core player 3. Crime 4. Weapons 5. PvP 6. Police
-7. Cars (implemented) 8. Co-op (implemented) 9. Hospital 10. Gangs 11. Businesses/factories
+7. Cars (implemented) 8. Co-op (implemented) 9. Hospital (implemented) 10. Gambling/Gangs 11. Businesses/factories
 12. Economy/balancing 13. Admin tools 14. Polish 15. Production deployment
 
 ---
@@ -696,6 +794,25 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
     but the cash/XP always land correctly regardless, every time. A real
     event/notification feed (section 44) would close this gap properly;
     out of scope for this MVP.
+18. **What actually sends a player to the hospital** (section 22) — the
+    single biggest judgment call in Phase 9, and worth a second look
+    before relying on it: the brief never says, so this landed on
+    "hospital is the free path's second stage after death" rather than
+    "combat can wound instead of kill." The full reasoning, and the
+    alternative that was deliberately *not* built (to avoid touching
+    Phase 5's already-shipped kill transaction), is in section 22 itself.
+19. **Every hospital number is an MVP placeholder** (section 22) —
+    `RECOVERY_HOURS`, `TREATMENT_COST`/`TREATMENT_REDUCTION_SECONDS`,
+    `GAMBLE_MIN_BET`/`MAX_BET`, `SMALL_JOB_CASH_REWARD`/`XP_REWARD`/
+    `COOLDOWN_SECONDS` — the brief names the four recovery activities but
+    gives no numbers for any of them. All live in `HOSPITAL` in
+    `config.ts`, easy to retune. Separately: an unauthenticated public
+    profile view can show a stale DEAD status past its real expiry until
+    that player's own next authenticated request settles it (nothing
+    unauthenticated triggers the write) — the same lazy-evaluation
+    tradeoff already accepted elsewhere, just newly visible here because
+    this is the first status transition that needs a write rather than
+    being purely derived on read.
 
 None of these block Phase 1; they're flagged here so they get a real
 decision (not just an assumption baked in silently) before the phases that

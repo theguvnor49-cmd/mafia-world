@@ -139,3 +139,40 @@ export const COOP = {
   REWARD_XP: 300,
   ROLES: ['Driver', 'Gunman', 'Hacker', 'Lookout', 'Muscle', 'Boss'] as const,
 };
+
+/** Hospital recovery (brief section 22). Every value here is an MVP
+ * placeholder — the brief names the four recovery activities ("rest,
+ * medical treatment, limited gambling, small jobs") but gives no numbers
+ * for any of them, and doesn't say what sends a player to the hospital in
+ * the first place. See GAME_DESIGN.md section 22 and "Open questions" for
+ * the full reasoning behind the design this landed on: hospital is the
+ * free path's second stage after death (replacing the old "24h then
+ * instantly ALIVE" fallthrough), not something combat causes directly —
+ * nothing about Phase 5's shipped kill transaction changes. Premium-point
+ * revive is untouched and still skips straight to fully ALIVE. */
+export const HOSPITAL = {
+  // Shorter than death's 24h (brief-given) since this is the lighter of
+  // the two sequential stages.
+  RECOVERY_HOURS: 2,
+
+  // "Medical treatment" — pay cash (not premium points, unlike revive) to
+  // shave time off the stay. Repeatable as many times as affordable.
+  TREATMENT_COST: 10_000,
+  TREATMENT_REDUCTION_SECONDS: 30 * 60,
+
+  // "Limited gambling" — a plain 50/50 double-or-nothing coin flip, capped
+  // per bet (brief section 23's own gambling-safety principle — "never
+  // unlimited-money" — applied here even though that section is about the
+  // later, full Gambling phase).
+  GAMBLE_MIN_BET: 500,
+  GAMBLE_MAX_BET: 5_000,
+
+  // "Small jobs" — a scaled-down crime usable only while hospitalized
+  // (normal GTA requires ALIVE). Deliberately simple: fixed reward,
+  // always succeeds, no heat/jail risk — you're already laid up, this
+  // isn't a heist. Short cooldown so there's something to do across a
+  // multi-hour stay without being spammable.
+  SMALL_JOB_COOLDOWN_SECONDS: 5 * 60,
+  SMALL_JOB_CASH_REWARD: 2_000,
+  SMALL_JOB_XP_REWARD: 10,
+};

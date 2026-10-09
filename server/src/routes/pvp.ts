@@ -6,6 +6,7 @@ import { getRankForXp } from '../mafia/ranks';
 import { deriveStatus } from '../mafia/status';
 import { calculateBulletsToKill } from '../mafia/bulletCalculator';
 import { pickWitnesses } from '../mafia/pvp/witnesses';
+import { settleDeathIntoHospital } from '../mafia/hospital/settle';
 import { PVP } from '../mafia/config';
 
 /** Columns needed to resolve a kill, shared by both lock queries below. */
@@ -217,6 +218,22 @@ export async function pvpRoutes(app: FastifyInstance) {
         if (attackerStatus !== 'ALIVE') {
           throw new PvpError(409, 'NOT_AVAILABLE', `You can't do that right now — you're ${attackerStatus.toLowerCase()}.`);
         }
+
+        // The attacker's own dead -> hospital transition is already
+        // settled by requireAuth's preHandler (see auth.ts) by the time
+        // this handler runs — but the target isn't the one making this
+        // request, so their row needs the same settle run explicitly
+        // here, inside this same locked transaction, before their status
+        // is read for the gating check below. Patches the in-memory copy
+        // too, rather than re-querying, since settleDeathIntoHospital
+        // already returns the exact value it wrote (or null if it didn't
+        // apply).
+        const settledHospitalUntil = await settleDeathIntoHospital(client, targetId, now);
+        if (settledHospitalUntil) {
+          target.dead_until = null;
+          target.hospital_until = settledHospitalUntil.toISOString();
+        }
+
         const targetStatus = deriveStatus(target, now);
         if (targetStatus !== 'ALIVE') {
           throw new PvpError(409, 'TARGET_NOT_ALIVE', `${target.username} is already ${targetStatus.toLowerCase()}.`);
