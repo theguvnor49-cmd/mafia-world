@@ -185,7 +185,20 @@ export const GAMBLING = {
       { symbol: '💎', weight: 10, threeOfAKindMultiplier: 15 },
       { symbol: '7️⃣', weight: 4, threeOfAKindMultiplier: 40 },
     ] as const,
-    TWO_CHERRIES_MULTIPLIER: 1.5,
+    // Phase 12 balancing pass: was 1.5, which worked out (see
+    // GAME_DESIGN.md's economy-audit section) to a real ~32.5% house
+    // edge — noticeably steeper than every other game here (roulette
+    // ~2.7%, dice ~21-25%, blackjack ~5.8%), despite this file's own
+    // comment claiming all four share "a modest, standard-casino-shaped
+    // edge." That claim was true for three of the four and silently
+    // false for this one until an actual Monte-Carlo run caught it.
+    // Raised to 1.75, which (exact math: 3-of-a-kind EV 0.246408 +
+    // 0.288 * 1.75 = 0.750408) lands slots at a ~25% edge — tied with
+    // dice's own steepest bet (SEVEN) instead of well above everything
+    // else. Still the steepest game here, which matches real-world
+    // slots conventionally running worse odds than table games — just
+    // no longer an outlier by a factor of ~1.5x.
+    TWO_CHERRIES_MULTIPLIER: 1.75,
   },
   ROULETTE: {
     MIN_BET: 100,
@@ -286,17 +299,23 @@ export const BUSINESSES = {
 
   // Robbery (a crime, unlike plain buy/upgrade/collect — mirrors GTA's
   // shape: a success chance, cash/XP/heat on success, jail/XP/heat on
-  // failure). Chance depends only on the TARGET business's own level
-  // (its "security"), not the robber's rank — unlike GTA's rank bonus.
-  // Flagged in "Open questions": a robber-side rank bonus would be a
-  // reasonable addition if this ends up feeling too static as players
-  // progress.
+  // failure). Chance depends on the TARGET business's own level (its
+  // "security") *and*, as of the Phase 12 balancing pass, the ROBBER's
+  // own rank — previously it was level-only, flagged in "Open questions"
+  // #28 as a static-feeling gap compared to GTA's rank bonus. Resolved
+  // by adding ROBBER_RANK_BONUS_PER_LEVEL at the same 0.01/level GTA
+  // itself uses (GTA.RANK_BONUS_PER_LEVEL) — deliberately the same
+  // number, not a newly-invented one, so a Legend-rank robber gets the
+  // same +0.09 edge here they'd get grinding GTA, keeping the two
+  // "rank rewards experience" curves in this game consistent with each
+  // other rather than inventing a second, unrelated scale.
   ROB: {
     BASE_CHANCE: 0.45,
     LEVEL_PENALTY_PER_LEVEL_ABOVE_ONE: 0.06,
     MIN_CHANCE: 0.1,
     MAX_CHANCE: 0.6,
     COOLDOWN_SECONDS: 10 * 60,
+    ROBBER_RANK_BONUS_PER_LEVEL: 0.01,
 
     SUCCESS_XP_MIN: 15,
     SUCCESS_XP_MAX: 40,

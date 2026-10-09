@@ -41,18 +41,23 @@ describe('resolveSlots', () => {
   });
 
   it('two cherries (not three) pays the smaller consolation multiplier', () => {
+    // Multiplier retuned 1.5 -> 1.75 in the Phase 12 balancing pass (see
+    // GAME_DESIGN.md's economy-audit section): at 1.5 this game's real
+    // house edge was ~32.5%, an outlier next to roulette/dice/blackjack's
+    // 2.7%-25%; 1.75 brings it to ~25%, in line with dice's own steepest
+    // bet instead of well above everything else.
     const result = resolveSlots(1000, queueRng([CHERRY_RNG, CHERRY_RNG, BELL_RNG]));
     expect(result.reels).toEqual(['🍒', '🍒', '🔔']);
     expect(result.won).toBe(true);
-    expect(result.multiplier).toBe(1.5);
-    expect(result.netChange).toBe(500);
+    expect(result.multiplier).toBe(1.75);
+    expect(result.netChange).toBe(750);
   });
 
   it('two cherries in any position still counts (not just adjacent)', () => {
     const result = resolveSlots(1000, queueRng([CHERRY_RNG, BELL_RNG, CHERRY_RNG]));
     expect(result.reels).toEqual(['🍒', '🔔', '🍒']);
     expect(result.won).toBe(true);
-    expect(result.multiplier).toBe(1.5);
+    expect(result.multiplier).toBe(1.75);
   });
 
   it('no match and fewer than two cherries is a total loss', () => {

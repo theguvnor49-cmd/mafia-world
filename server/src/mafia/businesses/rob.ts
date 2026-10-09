@@ -11,12 +11,20 @@ function randomInt(min: number, max: number): number {
   return Math.floor(min + Math.random() * (max - min + 1));
 }
 
-/** Chance depends only on the TARGET business's own level (its
- * "security") — not the robber's rank, unlike GTA's rank bonus. See
- * "Open questions" in GAME_DESIGN.md. */
-export function getRobSuccessChance(businessLevel: number): number {
+/** Chance depends on the TARGET business's own level (its "security") and
+ * the ROBBER's rank (`rankIndex`, same 0-9 index `getRankForXp` returns,
+ * defaulting to 0 so existing callers that only care about level-based
+ * difficulty keep working). Added in the Phase 12 balancing pass — see
+ * "Open questions" #28 in GAME_DESIGN.md for why this was static-level-
+ * only before, and the economy-audit section for why the bonus reuses
+ * GTA's own per-level figure rather than a new one. Parameter order
+ * (`level, rankIndex`) deliberately mirrors `getGtaSuccessChance(heat,
+ * rankIndex)`'s own (modifier, then rank) shape. */
+export function getRobSuccessChance(businessLevel: number, rankIndex: number = 0): number {
   const raw =
-    BUSINESSES.ROB.BASE_CHANCE - (businessLevel - 1) * BUSINESSES.ROB.LEVEL_PENALTY_PER_LEVEL_ABOVE_ONE;
+    BUSINESSES.ROB.BASE_CHANCE -
+    (businessLevel - 1) * BUSINESSES.ROB.LEVEL_PENALTY_PER_LEVEL_ABOVE_ONE +
+    rankIndex * BUSINESSES.ROB.ROBBER_RANK_BONUS_PER_LEVEL;
   return Math.min(BUSINESSES.ROB.MAX_CHANCE, Math.max(BUSINESSES.ROB.MIN_CHANCE, raw));
 }
 
@@ -29,9 +37,15 @@ export function getRobSuccessChance(businessLevel: number): number {
  * income.ts's `computeAccruedCash`), read and zeroed by the caller inside
  * its own database transaction (routes/businesses.ts) exactly the way a
  * legitimate `collect` would, just redirecting the payout to the robber.
+ *
+ * `rankIndex` (the ROBBER's rank, defaulting to 0) was added in the
+ * Phase 12 balancing pass — see `getRobSuccessChance` above. It sits
+ * between `businessLevel` and `roll` so this call reads exactly like
+ * `resolveGta(effectiveHeat, rankIndex, roll)`: modifiers first, the
+ * dice-roll always last.
  */
-export function resolveBusinessRob(businessLevel: number, roll: number = Math.random()): RobOutcome {
-  const chance = getRobSuccessChance(businessLevel);
+export function resolveBusinessRob(businessLevel: number, rankIndex: number = 0, roll: number = Math.random()): RobOutcome {
+  const chance = getRobSuccessChance(businessLevel, rankIndex);
   const success = roll < chance;
 
   if (success) {

@@ -4,7 +4,7 @@ Living design doc. This is the source of truth for game mechanics — if a new
 feature would conflict with something written here, that gets flagged and
 discussed before changing it. Update this file as each phase is built.
 
-**Status:** Phases 1–11 complete. See `TODO.md` for what's built vs. designed-only.
+**Status:** Phases 1–12 complete. See `TODO.md` for what's built vs. designed-only.
 
 ---
 
@@ -878,6 +878,142 @@ duration, bust chance/reward, gun/armour multipliers, rank XP thresholds,
 factory production — all configurable, moving into constants/config or
 database tables as each system is built.
 
+## 31a. Phase 12 — economy audit (implemented)
+
+Phase 12 is a different kind of phase from 7-11: there's no new table, no
+new route file, no new page. Every number this game uses already lives in
+one tunable place (`config.ts` constants or seed-data columns) — section 31
+above was already true before this phase started. What hadn't happened yet
+was actually *computing* what those numbers add up to, side by side, to
+check they're internally consistent — and, critically, doing that
+computation by actually running code, not by eyeballing config values and
+guessing. Hand arithmetic is exactly the kind of thing that quietly hides a
+wrong assumption (this audit found one — see "GTA's real steady-state heat"
+below — that a glance at the config file would never have caught).
+
+**Methodology.** A standalone script (detyped, run with plain `node`, same
+workaround every other phase has used for pure-logic verification in this
+npm-less sandbox) that: (a) ports every resolver's exact logic — GTA,
+business robbery, all four gambling games; (b) runs a real discrete-event
+simulation of GTA heat over many cooldown cycles to find its actual
+long-run steady state, rather than assuming heat sits near 0 between
+attempts; (c) runs 500,000-trial Monte Carlo sweeps of dice/slots/
+roulette/blackjack to get each game's *real* house edge from the actual
+payout code, not the "should be modest" intent in its comments; (d)
+computes every business type's hourly income and every other system's
+per-action reward directly from `config.ts`.
+
+**Finding 1 — GTA's real steady-state heat is 100, not ~0.** Heat decays
+at 1 point per 180s (`HEAT.DECAY_PER_SECOND`); a GTA cycle is bounded by
+its 10-minute cooldown (`GTA.COOLDOWN_SECONDS`), which only decays off
+~3.3 heat points between attempts. Average heat *gained* per attempt is
+~10 on success and ~16 on failure — both well above that 3.3-point decay —
+so a player who grinds GTA back-to-back doesn't hover near heat 0 the way
+an occasional player would; heat climbs every single cycle with no
+equilibrium below the cap, and sits pinned at 100 under sustained play.
+That matters because `GTA.HEAT_PENALTY_PER_POINT` (0.004/point) means
+success chance at heat 100 is a flat 40 points lower than the heat-0
+number everyone (including this project, until this audit actually ran
+the simulation) would otherwise assume. The *real* steady-state numbers:
+
+| Rank (index) | Success chance at steady-state heat (100) | Real $/hour, continuous grinding |
+|---|---|---|
+| Rookie (0) | 38% | ~$110,565 |
+| Capo (4) | 42% | ~$139,342 |
+| Legend (9) | 47% | ~$200,938 |
+
+No code changed here — this is exactly how heat is supposed to work as a
+brake on grinding (brief section 18/20), and the brief gives GTA's reward
+range directly (not a placeholder — see "Current MVP values" below), so
+there's nothing to retune even if the headline number is higher than it
+looks from the config file alone. The simulation also confirmed something
+worth having confirmed rather than assumed: failure's jail time (60-120s)
+is always shorter than the 600s cooldown, so a failed attempt costs a
+grinding player *no* extra downtime beyond the cooldown they'd be waiting
+through anyway — the two timers were never actually checked against each
+other before.
+
+**Finding 2 — GTA (zero capital) can out-earn a maxed-out Casino (a
+$7.5M investment) by ~2-3x per hour.** A level-5 Casino — the single
+priciest business, $750k to buy and $7.5M total to fully upgrade — earns
+$60,000/hour, passively, with no risk. Rookie-rank GTA, requiring zero
+capital, nets ~$110,565/hour at its real (heat-100) steady state, and
+that gap *widens* at higher ranks. Deliberately **not changed**: GTA's
+reward range is one of the few numbers in this entire system the brief
+gives directly (see section 19 / "Current MVP values"), not an MVP
+placeholder, so retuning it would mean overriding the brief rather than
+balancing a placeholder. Business income, meanwhile, *is* a placeholder —
+but there's no brief-given or playtested target to retune it *toward*;
+picking a new number now to close this gap would just be swapping one
+unvalidated guess for another, dressed up as if the audit had "solved"
+it. The more honest move is to document the real gap clearly: an active,
+repeatedly-played, risk-bearing grind out-earning a passive, capital-
+locked investment isn't obviously wrong as game design (it's a common,
+deliberate incentive shape), but a 2-3x gap at this magnitude is worth a
+real look once there's actual playtesting data showing whether anyone
+bothers building up businesses at all when GTA alone outpaces them. Added
+as Open Question #30 below rather than silently tuned away.
+
+**Finding 3 — slots' house edge (32.5%) was a real outlier; the other
+three games were already consistent.** The Monte Carlo sweep gave each
+game's *actual* return on a $1 bet:
+
+| Game | Return (pre-audit) | House edge (pre-audit) | Status |
+|---|---|---|---|
+| Roulette (color/parity or straight-up) | ~97.3% | ~2.7% | Matches real single-zero roulette almost exactly. No change. |
+| Dice (under/over) | ~79.2% | ~20.8% | Consistent with a real craps-style side bet. No change. |
+| Dice (seven) | ~75.0% | ~25.0% | Same shape, steeper bet pays more and loses more often by design. No change. |
+| Blackjack | ~94.2% | ~5.8% | Higher than optimal-strategy blackjack (~0.5-2%), expected since both sides play a fixed no-decision rule — still a reasonable, modest edge. No change. |
+| **Slots** | **~67.6%** | **~32.5%** | **Outlier — 1.3-4.5x steeper than every other game**, despite `config.ts`'s own comment claiming all four share "a modest, standard-casino-shaped edge." That claim was quietly false for this one game until this audit actually ran the numbers. |
+
+**Fixed:** `GAMBLING.SLOTS.TWO_CHERRIES_MULTIPLIER` raised from `1.5` to
+`1.75` (exact math: three-of-a-kind EV `0.246408` + `0.288 × 1.75` =
+`0.750408`). Re-running the same 500k-trial sweep after the change
+confirms slots now returns ~74.75% (~25.3% edge) — tied with dice's own
+steepest bet instead of dramatically worse than everything in the same
+casino. Still the steepest game here, which matches real-world slots
+conventionally running worse odds than table games; it just isn't an
+outlier by a factor of ~1.5x anymore. `slots.test.ts`'s hardcoded
+`1.5`/`500` assertions were updated to `1.75`/`750` to match.
+
+**Finding 4 — business robbery had no robber-side progression (Open
+question #28), unlike every other combat-shaped system here.** GTA's
+success chance rewards rank (`GTA.RANK_BONUS_PER_LEVEL`, 0.01/level);
+busts reward a track record; business robbery's chance depended only on
+the *target's* level — a robber got no better at it as they ranked up.
+**Fixed:** added `BUSINESSES.ROB.ROBBER_RANK_BONUS_PER_LEVEL = 0.01` —
+deliberately the *same* figure GTA itself uses, not a newly-invented
+number, so ranking up is worth the same +0.01/level edge whichever of
+this game's two "crimes" a player is doing. `getRobSuccessChance` and
+`resolveBusinessRob` (`mafia/businesses/rob.ts`) both take the robber's
+`rankIndex` now (defaulting to 0, so any caller that only cares about
+level-based difficulty keeps working); `routes/businesses.ts`'s `/rob`
+handler looks the robber's rank up via the same `getRankForXp(...).index`
+call `routes/crimes.ts` already uses for GTA. New real numbers:
+
+| Target level | Robber rank 0 | Robber rank 4 (Capo) | Robber rank 9 (Legend) |
+|---|---|---|---|
+| 1 | 45% | 49% | 54% |
+| 3 | 33% | 37% | 42% |
+| 5 (max) | 21% | 25% | 30% |
+
+**Reviewed, no change needed:** the gang territory claim cost ($500,000,
+set in Phase 10, paid from a gang's *shared treasury*) against business
+prices (up to $750,000, set in Phase 11, paid from an *individual's*
+cash) — these draw from genuinely different pools (a gang treasury
+accumulates from potentially many members' deposits over time, so it
+reaching $500k before one rich individual solo-saves $750k isn't an
+inconsistency), so no change was made here; flagged as considered rather
+than overlooked.
+
+**Not addressed in this phase (deliberately out of scope):** Open
+question #21's note about no daily/session gambling loss cap (only
+per-bet caps) is a new tracking feature, not a numeric retune — adding it
+belongs with a feature phase, not a balancing pass, so it stays open.
+Likewise #9's missing `cash_spent` counter is a statistics-completeness
+gap with no effect on balance; left for Polish (Phase 14) rather than
+bundled in here.
+
 ## 32. Current MVP values (from the original brief)
 
 Search 4h · Death 24h · Revive 50 premium points · 5 initial guns · 3
@@ -890,7 +1026,8 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
 1. Foundation 2. Core player 3. Crime 4. Weapons 5. PvP 6. Police
 7. Cars (implemented) 8. Co-op (implemented) 9. Hospital (implemented)
 10. Gambling + Gangs (implemented) 11. Businesses/factories (implemented)
-12. Economy/balancing 13. Admin tools 14. Polish 15. Production deployment
+12. Economy/balancing (implemented) 13. Admin tools 14. Polish
+15. Production deployment
 
 ---
 
@@ -1042,10 +1179,17 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
 21. **Every gambling payout, bet cap, and slot weight is an MVP
     placeholder** (section 23) — the brief names dice/slots/roulette/
     blackjack as candidates but gives no odds, payouts, or limits for any
-    of them. All live in `GAMBLING` in `config.ts`, easy to retune. There's
-    also no daily/session loss cap, only per-bet caps — worth adding if
-    "never unlimited-money" should mean more than that once there's real
-    playtesting data on how fast cash moves through this system.
+    of them. All live in `GAMBLING` in `config.ts`, easy to retune.
+    **Update (Phase 12):** an actual Monte-Carlo audit (section 31a) found
+    slots' real house edge was 32.5% — a real outlier next to roulette
+    (~2.7%), dice (~21-25%), and blackjack (~5.8%) — and retuned
+    `TWO_CHERRIES_MULTIPLIER` (1.5 → 1.75) to bring it to ~25%, in line
+    with the others. The other three games were checked and left as-is.
+    Still open: there's no daily/session loss cap, only per-bet caps —
+    worth adding if "never unlimited-money" should mean more than that
+    once there's real playtesting data on how fast cash moves through
+    this system; left for a feature phase, not this balancing pass, since
+    it's new tracking infrastructure rather than a numeric retune.
 
 22. **Gangs: only the Boss has any administrative power** (section 24) —
     kick, promote, demote, withdraw, claim-territory, and disband are all
@@ -1081,12 +1225,13 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
     The brief gives no shape for what gang control would mean, so none
     was guessed at. The most speculative of this phase's gaps — worth a
     real design pass, not just a numeric retune, before building it.
-28. **Businesses: rob's success chance has no robber-side rank bonus**
-    (section 25) — unlike GTA, which gets easier as the attacker ranks
-    up, robbing a business only gets *harder* as the target's own level
-    rises. A rank-based bonus for the robber (mirroring GTA) would be a
-    reasonable addition if this ends up feeling too static as players
-    progress.
+28. **Resolved (Phase 12). Businesses: rob's success chance now has a
+    robber-side rank bonus** (section 25, section 31a) — previously,
+    unlike GTA, robbing a business only got *harder* as the target's own
+    level rose, with no offsetting benefit for the robber's own progress.
+    Fixed by adding `BUSINESSES.ROB.ROBBER_RANK_BONUS_PER_LEVEL` at the
+    same 0.01/level figure `GTA.RANK_BONUS_PER_LEVEL` already uses, so
+    ranking up pays off the same way across both of this game's "crimes."
 29. **Businesses: no cap on total businesses in the world**, only the
     per-owner one-of-each-type cap (section 25) — unlike gangs' hard
     limit of 10, there's no ceiling on how many businesses can exist
@@ -1095,6 +1240,18 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
     `GET /businesses` directory will always stay small enough to return
     unpaginated (every other "list everything" endpoint in this codebase
     — gangs, cars — shares that same no-pagination assumption).
+30. **GTA can out-earn a maxed-out business by ~2-3x per hour, and
+    GTA's own real steady-state heat (100, not ~0) was only discovered by
+    actually simulating it** (section 31a) — a Rookie grinding GTA
+    continuously nets roughly $110,565/hour in real terms (heat pinned at
+    its cap drags success chance down to 38%, still well above a fully-
+    upgraded, $7.5M-invested Casino's passive $60,000/hour). Not changed:
+    GTA's reward range is brief-given, not a placeholder, and there's no
+    validated target to retune business income *toward* without real
+    playtesting data — inventing one now would just be a second
+    unvalidated guess dressed up as a fix. Worth a real look once there's
+    actual data on whether players bother building up businesses at all
+    when active grinding alone outpaces them this much.
 
 None of these block Phase 1; they're flagged here so they get a real
 decision (not just an assumption baked in silently) before the phases that

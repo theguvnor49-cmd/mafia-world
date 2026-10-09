@@ -5,6 +5,7 @@ import { pool, withTransaction } from '../db';
 import { requireAuth } from '../auth';
 import { deriveStatus } from '../mafia/status';
 import { computeEffectiveHeat, clampHeat } from '../mafia/heat';
+import { getRankForXp } from '../mafia/ranks';
 import { BUSINESSES } from '../mafia/config';
 import { getBusinessTypeDef, getIncomePerHour, computeAccruedCash, getUpgradeCost } from '../mafia/businesses/income';
 import { resolveBusinessRob } from '../mafia/businesses/rob';
@@ -133,7 +134,9 @@ const buySchema = z.object({ type: z.string().min(1) });
  *     claim), not the owner's bank balance directly — so an owner who
  *     collects often is a much thinner target, a risk/reward dynamic that
  *     falls straight out of sharing one formula rather than needing its
- *     own design.
+ *     own design. Success chance depends on the target's own level *and*
+ *     (since Phase 12's balancing pass) the robber's rank, the same two-
+ *     factor shape GTA's own success chance uses.
  *   - **At most one business of each type per owner** — an MVP cap (the
  *     brief doesn't say), preventing one rich player from buying unlimited
  *     Casinos and snowballing income without bound. Enforced by a real DB
@@ -368,7 +371,11 @@ export async function businessRoutes(app: FastifyInstance) {
         }
 
         const accrued = computeAccruedCash(business.type, business.level, new Date(business.last_collected_at), now);
-        const result = resolveBusinessRob(business.level);
+        // Robber's own rank factors into the odds since Phase 12's
+        // balancing pass (GAME_DESIGN.md, "Open questions" #28) — same
+        // getRankForXp(...).index lookup routes/crimes.ts uses for GTA.
+        const rank = getRankForXp(Number(robber.mafia_xp));
+        const result = resolveBusinessRob(business.level, rank.index);
         const robNextAt = new Date(now.getTime() + BUSINESSES.ROB.COOLDOWN_SECONDS * 1000);
         // Heat decays continuously (mafia/heat.ts) — add this rob's gain
         // on top of whatever it effectively is right now, same as GTA's
