@@ -2,7 +2,7 @@
 
 A persistent, browser-based, text-driven multiplayer mafia/crime game. See [`GAME_DESIGN.md`](./GAME_DESIGN.md) for the full design spec and [`TODO.md`](./TODO.md) for build status.
 
-This repo is being built in phases with Claude acting as lead developer. **Phases 1–7 are complete**: foundation (auth, health check, dashboard), core player (ranks, states, public profiles), crime (Grand Theft Auto, heat), weapons (guns, armour, bullet calculator), PvP (hunt/search, kill resolution, death/revive, witness statements), police (jail bust-outs), and cars (vehicle theft, ownership, melting into bullets). See `TODO.md` for the live, detailed status and `GAME_DESIGN.md` for how each system works.
+This repo is being built in phases with Claude acting as lead developer. **Phases 1–8 are complete**: foundation (auth, health check, dashboard), core player (ranks, states, public profiles), crime (Grand Theft Auto, heat), weapons (guns, armour, bullet calculator), PvP (hunt/search, kill resolution, death/revive, witness statements), police (jail bust-outs), cars (vehicle theft, ownership, melting into bullets), and co-op crimes (4-hour team jobs, up to 6 players, flat cash+XP payout). See `TODO.md` for the live, detailed status and `GAME_DESIGN.md` for how each system works.
 
 ## Stack
 
@@ -97,8 +97,10 @@ Open `http://localhost:3000`, click **Create Character**, register an account, a
 
 **Cars:** a successful Grand Theft Auto has a 20% chance of also handing you one of 15 vehicles (`/mafia/cars` shows the full catalog and your garage) — rarer ones are harder to steal and show up less often. Sell an owned car for cash or melt it into bullets; GTA's existing 10-minute cooldown is what keeps that bullet supply from spiraling.
 
+**Co-op crimes:** every 4 hours, one job opens somewhere (`/mafia/co-op`) — up to 6 players join in, optionally picking a flavor role, and everyone still in when the 4-hour timer runs out splits nothing and instead *each* gets the full $250,000 + bonus XP. No running scheduler anywhere: creation and payout both happen lazily, the first time anyone checks status, joins, or the protected `/internal/tick` endpoint is pinged.
+
 Nothing here trusts the client: passwords are hashed with bcrypt, sessions are JWTs verified server-side, every currency/combat operation runs inside a database transaction with row locking, and all player state is read from Postgres on every request.
 
 ## Next up
 
-See `TODO.md`. Continuing straight through Phase 8 (co-op crimes) and onward — no more per-phase pauses unless something genuinely needs a decision only you can make. One thing worth your own look whenever you do stop to review: `GAME_DESIGN.md` section 16 and "Open questions" #10 flag a deliberate deviation from the brief in how selling witness information works, for currency-safety reasons.
+See `TODO.md`. Continuing straight through Phase 9 (hospital) and onward — no more per-phase pauses unless something genuinely needs a decision only you can make. Two things worth your own look whenever you do stop to review: `GAME_DESIGN.md` section 16 and "Open questions" #10 flag a deliberate deviation from the brief in how selling witness information works, for currency-safety reasons; and "Open questions" #16 flags that co-op crimes run as one global job rather than one per state, also a deliberate reading of an underspecified brief section.

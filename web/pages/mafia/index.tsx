@@ -143,6 +143,9 @@ export default function Dashboard() {
           <Link href="/mafia/cars" style={navLinkStyle}>
             Garage →
           </Link>
+          <Link href="/mafia/co-op" style={navLinkStyle}>
+            Co-op heist →
+          </Link>
         </div>
 
         <p style={{ marginTop: 20, color: '#666', fontSize: 13 }}>

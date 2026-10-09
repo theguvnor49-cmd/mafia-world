@@ -79,20 +79,30 @@ Tracks build status against the 15 phases in `GAME_DESIGN.md`. Keep this updated
 - [x] `drop.test.ts` added; same actually-executed-in-a-scratchpad-script verification as every prior phase's pure logic (16 assertions, including a 100k-trial check that each rarity tier's empirical drop share matches its formula-predicted share, and that the overall drop rate matches the configured 20%)
 - [x] Verified the migration via `psql` as usual, **plus** a full manual dry-run covering all three money/resource-moving paths (a GTA success that drops a Lamborghini, a sell, a melt) against real seeded rows, **plus** a dedicated check confirming the sell/melt ownership-scoping predicate (`WHERE id = $1 AND user_id = $2`) actually blocks a different user from touching someone else's car — all explicitly rolled back, residue confirmed zero after
 
+**Phase 8 — Co-op crimes**
+- [x] `009_coop.sql` — `scheduler_state` singleton table (one row, `CHECK (id = 1)`, holds `next_coop_job_at`), `coop_jobs` table (state, opens/closes_at, reward_cash/xp, resolved_at), `coop_job_participants` (job_id + user_id + optional role, `UNIQUE(job_id, user_id)` and `UNIQUE(job_id, role)` — the latter NULL-safe, so any number of roleless players can coexist alongside at most one of each named role)
+- [x] `server/src/mafia/coop/job.ts` — `pickRandomState()`, pure uniform selection over whatever state names are passed in, same style as every other probabilistic pick in this codebase
+- [x] `routes/coop.ts` — `ensureCoopJobExists()` and `resolveClosedJobs()`, the shared lazy-evaluation machinery (locks the `scheduler_state` row to create a job only when due; a conditional `UPDATE ... WHERE resolved_at IS NULL` claims a closed job for resolution so two concurrent callers can't both pay it out), called from both the player-facing routes below and `routes/tick.ts`
+- [x] `GET /api/v1/mafia/coop/status` — resolves anything overdue, creates a new job if one is due, returns the current job (state, timer, reward, roster, your role) plus a one-time `justCompleted` payout notice when your own read is the one that triggered a resolution
+- [x] `POST /api/v1/mafia/coop/join` — optional role; checks ALIVE, same state as the job (real check, same travel caveat as PvP/jail), job not full (6-player cap enforced by an app-level count *protected by the job row's own lock*, not a DB constraint — see "Open questions" #16), not already joined, role not already taken (the last two caught as friendly errors off the real `UNIQUE` constraints, same pattern as `search/start`'s `ALREADY_HUNTING`)
+- [x] `routes/tick.ts` — `POST /internal/tick`, guarded by a `X-Tick-Secret` header compared with `crypto.timingSafeEqual`; runs the same ensure/resolve pair as `coop/status`. Deliberately not a correctness dependency — every lazy system here (heat, hunt reveal, now co-op) self-heals on its own next real read with or without a tick ever firing.
+- [x] Frontend: `/mafia/co-op` — current job card (state, countdown, reward, roster with roles), join form with a role dropdown (disables already-taken roles), a dismissible "you got paid" banner; dashboard gained a "Co-op heist" nav link
+- [x] `job.test.ts` added; same actually-executed-in-a-scratchpad-script verification as every prior phase's pure logic (9 assertions, including the roll-exactly-1 clamp boundary and an 80k-trial uniformity sweep across the real 8 states)
+- [x] Verified the migration via `psql` as usual (including proving the `scheduler_state` singleton really does reject a second row), **plus** a full manual dry-run of the entire job lifecycle against real seeded rows in one script: creation, a second near-simultaneous due-check creating nothing (idempotent), a role conflict correctly rejected then retried roleless, the roster filling to exactly 6 and a 7th joiner correctly blocked, a wrong-state joiner correctly distinguished, and resolution paying all 6 participants the exact reward exactly once — re-claiming the same job afterward affects 0 rows and leaves nobody double-paid. Explicitly rolled back; residue confirmed zero from a fresh connection afterward.
+
 **Not yet verified for any phase:** a full `npm install` + running-server + HTTP round-trip test, and running the vitest suites *as vitest* rather than as a standalone script. This cloud sandbox's network policy blocks `registry.npmjs.org` (confirmed twice now, in two separate sessions a few weeks apart — once as an explicit "host not allowed"/"organization policy" denial, once as outright DNS failure) and the internal mirror needs credentials this session doesn't have — see "Open questions" in `GAME_DESIGN.md`. The code is written and reviewed carefully, but treat the first real `npm install && npm run dev` (by you, or once pushed to Render/Vercel) as the real first run.
 
 ## In progress
 
-- [ ] None right now. Phases 1-7 are all committed. Pushing straight through the remaining phases per Glenn's instruction — no more per-phase check-ins unless a genuine design decision blocks progress.
+- [ ] None right now. Phases 1-8 are all committed. Pushing straight through the remaining phases per Glenn's instruction — no more per-phase check-ins unless a genuine design decision blocks progress.
 
 ## Next
 
-- [ ] Phase 8 — Co-op crimes (4-hour jobs, up to 6-player teams, roles)
+- [ ] Phase 9 — Hospital (recovery percentage, small recovery activities instead of a forced wait screen)
 - [ ] **Deployment walkthrough** (Step 8 of the original brief): GitHub repo → Supabase (Postgres) → Render (backend) → Vercel (frontend), one exact step at a time.
 
 ## Future (not started)
-- [ ] Phase 9 — Hospital (recovery, activities)
-- [ ] Phase 10 — Gangs (max 10, roles, treasury, territory, destruction)
+- [ ] Phase 10 — Gambling (dice/slots/blackjack/roulette) + Gangs (max 10, roles, treasury, territory, destruction) — both land under "Phase 10" per `GAME_DESIGN.md` sections 23-24; this line will split if they end up big enough to build separately.
 - [ ] Phase 11 — Businesses / factories
 - [ ] Phase 12 — Economy / balancing pass
 - [ ] Phase 13 — Admin tools

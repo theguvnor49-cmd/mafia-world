@@ -121,3 +121,21 @@ export const BUST = {
 export const CARS = {
   DROP_CHANCE_ON_SUCCESS: 0.2,
 };
+
+/** Co-op crimes (brief sections 27-28). MAX_PLAYERS (6) and DURATION_HOURS
+ * (4, "co-op crimes happen every 4 hours") are from the brief directly.
+ * REWARD_CASH ($250,000) is the brief's own worked example, not a
+ * placeholder — it's the one number in this whole system the brief
+ * actually gives. REWARD_XP has no brief-given figure ("+ Mafia XP" with
+ * no amount) — an MVP placeholder, picked to feel "substantially higher"
+ * than a solo crime's XP the same way the cash reward is. ROLES is the
+ * brief's own example list (section 27: "Eventually players should have
+ * roles. For example: ...") — flavor-only in this MVP, no mechanical
+ * effect on success or reward. */
+export const COOP = {
+  MAX_PLAYERS: 6,
+  DURATION_HOURS: 4,
+  REWARD_CASH: 250_000,
+  REWARD_XP: 300,
+  ROLES: ['Driver', 'Gunman', 'Hacker', 'Lookout', 'Muscle', 'Boss'] as const,
+};

@@ -12,6 +12,8 @@ import { pvpRoutes } from './routes/pvp';
 import { witnessRoutes } from './routes/witness';
 import { jailRoutes } from './routes/jail';
 import { vehicleRoutes } from './routes/vehicles';
+import { coopRoutes } from './routes/coop';
+import { tickRoutes } from './routes/tick';
 
 const app = Fastify({ logger: true });
 
@@ -34,6 +36,8 @@ async function main() {
   await app.register(witnessRoutes);
   await app.register(jailRoutes);
   await app.register(vehicleRoutes);
+  await app.register(coopRoutes);
+  await app.register(tickRoutes);
 
   app.setErrorHandler((error, request, reply) => {
     request.log.error(error);

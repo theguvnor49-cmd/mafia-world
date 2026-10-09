@@ -4,7 +4,7 @@ Living design doc. This is the source of truth for game mechanics — if a new
 feature would conflict with something written here, that gets flagged and
 discussed before changing it. Update this file as each phase is built.
 
-**Status:** Phases 1–7 complete. See `TODO.md` for what's built vs. designed-only.
+**Status:** Phases 1–8 complete. See `TODO.md` for what's built vs. designed-only.
 
 ---
 
@@ -415,10 +415,50 @@ Phase 2/5; `timesArrested` was missing from the *public* profile response
 specifically (brief section 26 lists it alongside the other three as
 profile-displayable) — added in this phase.
 
-## 21. Co-op crimes (Phase 8 — not yet built)
+## 21. Co-op crimes (implemented)
 
-Every 4 hours, per state, up to 6 players, with a reward well above solo
-crimes. Eventually roles: Driver, Gunman, Hacker, Lookout, Muscle, Boss.
+Every 4 hours, up to 6 players team up on a single, much bigger job than
+any solo crime pays — the brief's own worked example: a "CO-OP HEIST" for
+$250,000 + bonus Mafia XP. `GET /api/v1/mafia/coop/status` (auth) shows
+the currently running job — its state, time remaining, reward, and roster
+— and `POST /api/v1/mafia/coop/join` (auth, optional `role`) joins you
+into it. Roles are the brief's own example list (Driver, Gunman, Hacker,
+Lookout, Muscle, Boss) and are flavor-only: picking one has no mechanical
+effect beyond "at most one of each role per job," enforced by a database
+`UNIQUE` constraint, not application logic.
+
+There's no running scheduler process (same constraint as heat decay and
+hunt reveal, sections 14/20) — a co-op job's *creation* and its
+*resolution* are both lazy, happening the first time anyone reads co-op
+status, tries to join, or `/internal/tick` is called, after the relevant
+deadline has passed. A one-row `scheduler_state` singleton table tracks
+when the next job is due; every creation check locks that row with
+`SELECT ... FOR UPDATE` so two concurrent requests racing to notice a job
+is due can't both create one — the same row-locking principle used for
+per-player currency everywhere else in this codebase, just applied to a
+single global row instead of a per-player one. Resolution uses a similar
+trick: a conditional `UPDATE coop_jobs SET resolved_at = now() WHERE
+resolved_at IS NULL` acts as an atomic claim, so if two requests both
+notice the same job is overdue, only one of them actually pays anybody.
+
+When a job closes, every participant still on the roster is paid the
+job's full `reward_cash` ($250,000) / `reward_xp` (300) — no success or
+failure roll, no split pool (see "Open questions" #16). Joining requires
+being ALIVE and physically in the job's state — a real check, though
+close to a no-op today since travel doesn't exist yet (same caveat as
+PvP's and jail's own state-matching). The join endpoint also enforces,
+via database `UNIQUE` constraints rather than just application code, that
+nobody joins the same job twice and nobody doubles up on a role.
+
+**Simplifications worth flagging** (also "Open questions" #16-17): one
+global job at a time rather than one per state; a flat full reward per
+participant rather than a shared/split pool; no success/failure roll; no
+minimum player count (a lone participant still gets paid in full); no
+leave-job endpoint; and the one-time "you got paid!" notice on the status
+endpoint can be missed if your read isn't the specific one that happens
+to trigger resolution — though the payout itself is always correct and
+already reflected in your cash/XP regardless of whether you saw the
+notice.
 
 ## 22. Hospital (Phase 9 — not yet built)
 
@@ -490,17 +530,32 @@ forged cooldowns, fake kills and fake rewards.
 No stack traces ever reach the client (see the Fastify error handler in
 `server/src/index.ts`).
 
-## 30. Scheduler / game tick
+## 30. Scheduler / game tick (implemented)
 
 Free-tier backends can sleep, so nothing important relies on in-memory
-timers (`setTimeout`) — every timer is a database timestamp
-(`dead_until`, `jail_until`, `hospital_until`, `crime_next_at`,
-`coop_next_at`, search `completes_at`, etc.). A protected
-`POST /internal/tick` endpoint (guarded by `TICK_SECRET`) will later handle
-scheduled co-op jobs, heat decay, factory production and other due events;
-an external scheduled request wakes the free backend to run it. Not built
-yet — added when the first system that needs it (heat decay or co-op jobs)
-is built.
+timers (`setTimeout`) — every timer that matters is a database timestamp
+(`dead_until`, `jail_until`, `hospital_until`, `gta_next_at`,
+`scheduler_state.next_coop_job_at`, `coop_jobs.closes_at`, hunt
+`completes_at`, heat's `heat_updated_at`, etc.), and every system reads
+and corrects for elapsed time lazily, on whatever request happens to come
+in next — nothing anywhere depends on being "woken up" to behave
+correctly.
+
+`POST /internal/tick`, guarded by an `X-Tick-Secret` header checked
+against `TICK_SECRET` with a timing-safe comparison
+(`crypto.timingSafeEqual`), exists anyway, because the brief explicitly
+asks for something an external scheduler can ping to keep a sleeping
+free-tier backend's lazy systems fresher than "whenever a player happens
+to look." Calling it just runs the same creation/resolution logic
+`GET /api/v1/mafia/coop/status` already runs on every read — it's
+deliberately **not a correctness dependency**: every lazy-evaluated
+system in this game (heat decay, hunt reveal, and now co-op jobs)
+self-heals on its own next real read whether or not this endpoint is
+ever called. Right now it only has co-op work to do — heat decay needs no
+active step, since it's a pure function of elapsed time with nothing to
+"catch up." Future phases that add their own due-events (factory
+production, for one) will plug into this same endpoint rather than
+inventing a second one.
 
 ## 31. Balancing
 
@@ -520,7 +575,7 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
 ## 33. Phases (see `TODO.md` for live status)
 
 1. Foundation 2. Core player 3. Crime 4. Weapons 5. PvP 6. Police
-7. Cars (implemented) 8. Co-op 9. Hospital 10. Gangs 11. Businesses/factories
+7. Cars (implemented) 8. Co-op (implemented) 9. Hospital 10. Gangs 11. Businesses/factories
 12. Economy/balancing 13. Admin tools 14. Polish 15. Production deployment
 
 ---
@@ -606,6 +661,41 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
     fields with no ratio. Both are easy to retune (`CARS` in `config.ts`
     for the drop rate, `008_vehicles.sql`'s seed data for resale) once
     there's real playtesting data on how fast bullets accumulate.
+16. **Co-op jobs: one global job rather than one per state; flat full
+    reward, no success roll.** Section 27's own summary line is "every 4
+    hours, per state, up to 6 players" — this implementation runs ONE job
+    globally at a time instead of up to 8 simultaneous per-state jobs,
+    because the brief's own worked example describes a single "CO-OP
+    HEIST" and running several parallel jobs every cycle is meaningfully
+    more complex for no requirement the brief actually states. Revisit if
+    "per state" turns out to matter once there's a real playerbase spread
+    across states. Separately: unlike every other probabilistic system in
+    this game (GTA, busts, kills), there's no failure case here —
+    everyone still on the roster when the timer ends is paid the reward
+    in full, not a split pool, because the brief's own example gives the
+    whole $250,000 + XP figure with no mention of either a roll or a
+    split. There's also no minimum player count (a lone participant still
+    gets paid) and no leave-job endpoint — neither is called for anywhere
+    in the brief. `REWARD_XP` (300) has no brief-given number at all ("+
+    Mafia XP" with no amount) — an MVP placeholder, same treatment as
+    GTA's rank-bonus figures.
+17. **Co-op scheduling: catch-up is capped at one job, and the "you got
+    paid" notice can be missed.** Job creation and resolution are both
+    lazy (same pattern as heat decay and hunt reveal) — nothing happens
+    until someone reads co-op status, joins, or `/internal/tick` is
+    called. Rather than anchoring the next job's due time to the old
+    schedule plus 4 hours (which could burst-create a run of back-to-back
+    jobs if the game goes completely unread for a long stretch), each
+    creation resets the timer to *that creation's own timestamp* plus 4
+    hours — so a long idle period produces exactly one catch-up job, not
+    a flood. Separately, the one-time `justCompleted` payout notice on
+    `GET /coop/status` only fires for whichever specific API call happens
+    to be the one that resolves a given job; if nobody checks status in
+    that exact window (someone else's read, or `/internal/tick`, resolves
+    it first), that player simply never sees the "you got paid!" banner —
+    but the cash/XP always land correctly regardless, every time. A real
+    event/notification feed (section 44) would close this gap properly;
+    out of scope for this MVP.
 
 None of these block Phase 1; they're flagged here so they get a real
 decision (not just an assumption baked in silently) before the phases that
