@@ -290,9 +290,12 @@ exposes cooldown + status + effective heat for the frontend countdown.
 
 **Simplification:** `jail_seconds_served` is credited with the *full*
 sentence at the moment of sentencing, not accrued over the time actually
-served. Fine for now since nothing can shorten a sentence yet; once
-Phase 6 bust-outs exist, a bust will need to credit less than the full
-amount.
+served. Now that Phase 6 bust-outs exist and can shorten a sentence, this
+stays as-is deliberately — a successful bust clears `jail_until` without
+reducing `jail_seconds_served`, so the statistic means "time sentenced,"
+not "time actually spent behind bars." The brief doesn't specify either
+way; this was the simpler of the two readings and avoids a second write to
+the same counter from a different route file.
 
 ## 18. Heat (implemented — `mafia/heat.ts`)
 
