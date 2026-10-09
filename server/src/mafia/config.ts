@@ -207,6 +207,29 @@ export const GAMBLING = {
   },
 };
 
+/** Gangs (brief section 24). `MAX_GANGS` (10) and `RANKS` are from the
+ * brief directly — note the brief lists ranks high-to-low ("Boss,
+ * Underboss, Capo, Soldier, Associate"); `RANKS` here is low-to-high
+ * instead, since that's the order promote/demote actually walks. Every
+ * cost/reward number is an MVP placeholder — the brief names a treasury,
+ * territory, and reputation but gives no figures for any of them. */
+export const GANGS = {
+  MAX_GANGS: 10,
+  RANKS: ['Associate', 'Soldier', 'Capo', 'Underboss', 'Boss'] as const,
+
+  // Cash straight from the founder's own pocket, not the (not-yet-
+  // existing) treasury — there's nothing in the treasury before a gang
+  // exists to have one.
+  CREATION_COST: 100_000,
+
+  // Claiming territory isn't free, and it's deliberately a *treasury*
+  // cost (see routes/gangs.ts) so a gang needs to actually accumulate
+  // shared funds before expanding, rather than one rich founder
+  // single-handedly claiming every open state.
+  TERRITORY_CLAIM_COST: 500_000,
+  TERRITORY_CLAIM_REPUTATION: 50,
+};
+
 export const HOSPITAL = {
   // Shorter than death's 24h (brief-given) since this is the lighter of
   // the two sequential stages.

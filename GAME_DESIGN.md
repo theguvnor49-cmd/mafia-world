@@ -4,7 +4,7 @@ Living design doc. This is the source of truth for game mechanics — if a new
 feature would conflict with something written here, that gets flagged and
 discussed before changing it. Update this file as each phase is built.
 
-**Status:** Phases 1–9 complete. See `TODO.md` for what's built vs. designed-only.
+**Status:** Phases 1–10 complete. See `TODO.md` for what's built vs. designed-only.
 
 ---
 
@@ -621,13 +621,93 @@ the frontend keeps its own local session log rather than a dedicated
 `GET .../history` route. No multiplayer/shared tables (each bet is solely
 between one player and the house).
 
-## 24. Gangs (Phase 10 — not yet built)
+## 24. Gangs (implemented)
 
-Max 10 gangs initially. Name, leader, members, roles (Boss, Underboss,
-Capo, Soldier, Associate), treasury, territory, businesses, reputation,
-statistics. A destroyed gang can be disbanded, drop businesses, release
-territory to neutral, and its members become free agents — gang stats
-persist in history.
+Max 10 gangs (`GANGS.MAX_GANGS` in `config.ts`), each with a name,
+members, ranks (Boss, Underboss, Capo, Soldier, Associate), a treasury,
+up to one territory (a state), and reputation. `POST/GET
+/api/v1/mafia/gangs...` (`routes/gangs.ts`) covers create, the public
+list and detail views, join/leave/kick, promote/demote, deposit/withdraw,
+claim-territory, and disband. Businesses are left out entirely — they
+don't exist yet (Phase 11); nothing to hook up until that table does.
+
+- **Leadership is derived, never stored.** There's no `gangs.leader_id`
+  column — the Boss is whoever holds `rank = 'Boss'` in `gang_members`
+  for that gang, enforced by a real DB constraint
+  (`idx_gang_members_one_boss_per_gang`, a partial unique index on
+  `gang_members(gang_id) WHERE rank = 'Boss'`) rather than application
+  logic. Same "derive, don't duplicate" principle already used for rank
+  (from XP), status (from timers), and co-op rosters.
+- **A dedicated mutex row enforces the 10-gang cap.** `gang_registry` is a
+  single always-one-row table (`id SMALLINT PK CHECK (id = 1)`) that holds
+  no real data — its only purpose is something to `SELECT ... FOR UPDATE`
+  before counting active gangs and inserting a new one. Locking the
+  *existing* `gangs` rows wouldn't work: a `FOR UPDATE` on rows that
+  already exist can't stop two concurrent transactions from each deciding
+  "9 < 10, I'll insert a 10th" and both inserting — the classic phantom-read
+  problem, since there's no row yet to lock for the gang that doesn't exist
+  until the INSERT. Locking the registry row first serializes every gang
+  creation through one gate. (Considered and rejected: a table-level
+  `LOCK TABLE gangs IN EXCLUSIVE MODE`, which works but breaks from this
+  codebase's per-concern singleton-row pattern; and reusing the existing
+  `scheduler_state` row, which would couple gang creation to unrelated
+  co-op scheduling state.)
+- **Open-join, not invite/apply** — anyone can join any gang with no
+  approval step, same precedent co-op jobs already set and for the same
+  reason: a request/invite/notification subsystem is real scope the brief
+  doesn't call for. The Boss's `kick` is the safety valve against an
+  unwanted joiner.
+- **Only the Boss has any power** (kick, promote, demote, withdraw, claim
+  territory, disband) — an MVP simplification. The brief lists Underboss/
+  Capo as real ranks above Soldier/Associate, which in a fuller version
+  would presumably carry their own slice of permissions, but building that
+  whole matrix with no brief-given specifics to build it *from* felt like
+  invented scope. "Only the Boss administers" is the simplest reading that
+  still makes rank mean something (bragging rights, promotion progress)
+  without guessing at specifics the brief never gives.
+- **Leadership never transfers.** The Boss is fixed to whoever created the
+  gang; promoting tops out at Underboss (`mafia/gangs/ranks.ts`'s
+  `getNextRank` honestly walks the full ladder including Boss, but the
+  route itself refuses to promote anyone into it —
+  `CANNOT_PROMOTE_TO_BOSS`), and the Boss can't leave, only disband
+  (`BOSS_CANNOT_LEAVE`). Revisit if a real playerbase wants succession.
+- **Deposit is open to any member; withdraw is Boss-only** — the same
+  currency-safety split as Phase 5's witness buy/sell: letting any
+  Associate drain a shared treasury would be an obvious grief vector.
+  Neither touches `cash_earned`/`cash_lost` — they're internal transfers of
+  money the player already had, not new income or loss, the same
+  reasoning Open Question #9 already applies to voluntary gear purchases.
+- **Territory is claimed, not fought over.** A Boss can claim whatever
+  state they're currently standing in, for `TERRITORY_CLAIM_COST` from the
+  treasury plus `TERRITORY_CLAIM_REPUTATION` reputation, as long as no
+  other *active* gang already holds it — enforced by a real DB constraint
+  (`idx_gangs_territory_active`, a partial unique index on
+  `gangs(territory_state) WHERE disbanded_at IS NULL AND territory_state IS
+  NOT NULL`), caught in the route as `TERRITORY_TAKEN`. There's no
+  mechanic to take territory *from* another gang by force — the brief
+  describes territory and destruction releasing it to neutral, but gives
+  no capture/war mechanic, so claiming only ever targets unclaimed states.
+  Disbanding is the only way held territory currently changes hands, and
+  it does so automatically: the partial index's `WHERE disbanded_at IS
+  NULL` means a disbanded gang's old territory simply stops counting
+  toward the constraint, no explicit "release" step needed (the disband
+  handler clears `territory_state` anyway, for clarity).
+- **"Destroyed" and "disbanded" are the same action for now** — the brief
+  bundles them, and there's no PvP/war system that could forcibly destroy
+  a gang out from under its Boss, so the only gang-ending action built is
+  the Boss voluntarily disbanding. Forcible destruction is a future system
+  — the same missing piece as territory capture, above.
+- **Disbanding soft-deletes the gang, hard-deletes the memberships.** The
+  brief says a destroyed gang's "stats persist in history" but its members
+  "become free agents" — two different lifetimes for two different kinds
+  of row. So `gang_members` rows are deleted immediately (members are free
+  to join elsewhere right away) while `gangs.disbanded_at` is set on a row
+  that's never dropped (name/treasury/reputation stay queryable forever).
+  This is the first table in the codebase to mix hard- and soft-delete for
+  two halves of the same action.
+- **Member count and combined kills are derived, never stored** — both
+  are live `COUNT`/`SUM` joins on read (`GET /gangs` and `GET
+  /gangs/:name`), the same principle as leadership above.
 
 ## 25. Businesses & factories (Phase 11 — not yet built)
 
@@ -639,7 +719,8 @@ controllable by gangs. Factories produce resources on a timestamp basis
 ## 26. Player profile & statistics (implemented)
 
 `GET /api/v1/players/:username` returns a public profile: rank, XP, status,
-state, cash, gang (always `null` until Phase 10), and the stats below.
+state, cash, gang (name + rank, `null` if not in one — Phase 10), and the
+stats below.
 Never exposes email, password hash, premium points, bullets or equipped
 gear. The 14 statistics from brief section 36 (crimes committed/succeeded/
 failed, kills, deaths, bullets fired/spent, cash earned/lost, cars stolen/
@@ -731,7 +812,7 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
 
 1. Foundation 2. Core player 3. Crime 4. Weapons 5. PvP 6. Police
 7. Cars (implemented) 8. Co-op (implemented) 9. Hospital (implemented)
-10. Gambling (implemented) + Gangs (not yet built) 11. Businesses/factories
+10. Gambling + Gangs (implemented) 11. Businesses/factories
 12. Economy/balancing 13. Admin tools 14. Polish 15. Production deployment
 
 ---
@@ -888,6 +969,28 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
     also no daily/session loss cap, only per-bet caps — worth adding if
     "never unlimited-money" should mean more than that once there's real
     playtesting data on how fast cash moves through this system.
+
+22. **Gangs: only the Boss has any administrative power** (section 24) —
+    kick, promote, demote, withdraw, claim-territory, and disband are all
+    Boss-only. The brief names Underboss/Capo as distinct ranks above
+    Soldier/Associate but never specifies what, if anything, they can
+    actually do — worth a second look if a fuller permission matrix (say,
+    Underboss can kick but not disband) turns out to matter.
+23. **Gangs: territory can be claimed but never captured** (section 24) —
+    a Boss can only claim a neutral (unclaimed) state, never take one from
+    an active rival gang by force. The brief gives no PvP-vs-gang/war
+    mechanic, so this is a real gap, not just an MVP number — grouped with
+    "destroyed == disbanded" below as two faces of the same missing
+    subsystem.
+24. **Gangs: no forcible destruction, only voluntary disband** (section
+    24) — the brief's "a destroyed gang can be disbanded..." bundles two
+    ideas with no war system to tell them apart. Revisit once/if PvP-vs-
+    gang combat exists.
+25. **Gangs: leadership never transfers** (section 24) — the Boss is fixed
+    to whoever created the gang; there's no "promote to Boss" or
+    succession-on-inactivity mechanic. Fine for an MVP where a Boss
+    presumably keeps playing, but worth a second look if an abandoned gang
+    with no active Boss turns out to be a real scenario.
 
 None of these block Phase 1; they're flagged here so they get a real
 decision (not just an assumption baked in silently) before the phases that

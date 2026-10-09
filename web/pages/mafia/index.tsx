@@ -19,6 +19,7 @@ interface MeData {
   deadUntil: string | null;
   jailUntil: string | null;
   hospitalUntil: string | null;
+  gang: { name: string; rank: string } | null;
 }
 
 /** mm:ss — matches the brief's own jail mockup ("Time remaining: 01:12").
@@ -121,6 +122,15 @@ export default function Dashboard() {
             <h1 style={{ margin: 0 }}>{me.username}</h1>
             <p style={{ margin: '4px 0 0', color: '#999' }}>
               {me.rank} · 📍 {me.state}
+              {me.gang && (
+                <>
+                  {' '}
+                  ·{' '}
+                  <Link href={`/mafia/gangs/${encodeURIComponent(me.gang.name)}`} style={{ color: '#f87171' }}>
+                    {me.gang.name} ({me.gang.rank})
+                  </Link>
+                </>
+              )}
             </p>
           </div>
           <StatusBadge status={me.status} />
@@ -197,11 +207,14 @@ export default function Dashboard() {
           <Link href="/mafia/gambling" style={navLinkStyle}>
             Casino →
           </Link>
+          <Link href="/mafia/gangs" style={navLinkStyle}>
+            Gangs →
+          </Link>
         </div>
 
         <p style={{ marginTop: 20, color: '#666', fontSize: 13 }}>
-          Gangs and everything else in the brief land in later phases — this dashboard will grow
-          with them.
+          Businesses and everything else in the brief land in later phases — this dashboard will
+          grow with them.
         </p>
 
         <button onClick={() => { clearToken(); router.push('/'); }} style={logoutStyle}>

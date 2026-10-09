@@ -21,6 +21,8 @@ interface PublicUserRow {
   times_arrested: number;
   successful_busts: number;
   failed_busts: number;
+  gang_name: string | null;
+  gang_rank: string | null;
 }
 
 /**
@@ -36,10 +38,14 @@ export async function playerRoutes(app: FastifyInstance) {
     const { username } = request.params as { username: string };
 
     const result = await pool.query<PublicUserRow>(
-      `SELECT username, state, mafia_xp, cash, dead_until, jail_until, hospital_until,
-              crimes_committed, crimes_succeeded, crimes_failed, kills, deaths,
-              jail_seconds_served, times_arrested, successful_busts, failed_busts
-       FROM users WHERE lower(username) = lower($1)`,
+      `SELECT u.username, u.state, u.mafia_xp, u.cash, u.dead_until, u.jail_until, u.hospital_until,
+              u.crimes_committed, u.crimes_succeeded, u.crimes_failed, u.kills, u.deaths,
+              u.jail_seconds_served, u.times_arrested, u.successful_busts, u.failed_busts,
+              gn.name AS gang_name, gm.rank AS gang_rank
+       FROM users u
+       LEFT JOIN gang_members gm ON gm.user_id = u.id
+       LEFT JOIN gangs gn ON gn.id = gm.gang_id AND gn.disbanded_at IS NULL
+       WHERE lower(u.username) = lower($1)`,
       [username]
     );
     const user = result.rows[0];
@@ -58,7 +64,7 @@ export async function playerRoutes(app: FastifyInstance) {
         status: deriveStatus(user),
         state: user.state,
         cash: Number(user.cash),
-        gang: null, // gangs land in Phase 10
+        gang: user.gang_name ? { name: user.gang_name, rank: user.gang_rank } : null,
         stats: {
           crimesCommitted: user.crimes_committed,
           crimesSucceeded: user.crimes_succeeded,

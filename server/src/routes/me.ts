@@ -39,6 +39,8 @@ interface UserRow {
   times_arrested: number;
   successful_busts: number;
   failed_busts: number;
+  gang_name: string | null;
+  gang_rank: string | null;
 }
 
 export async function meRoutes(app: FastifyInstance) {
@@ -52,10 +54,13 @@ export async function meRoutes(app: FastifyInstance) {
               u.heat, u.dead_until, u.jail_until, u.hospital_until,
               u.crimes_committed, u.crimes_succeeded, u.crimes_failed, u.kills, u.deaths,
               u.bullets_fired, u.bullets_spent, u.cash_earned, u.cash_lost, u.cars_stolen, u.cars_melted,
-              u.jail_seconds_served, u.times_arrested, u.successful_busts, u.failed_busts
+              u.jail_seconds_served, u.times_arrested, u.successful_busts, u.failed_busts,
+              gn.name AS gang_name, gm.rank AS gang_rank
        FROM users u
        LEFT JOIN guns g ON g.name = u.equipped_gun
        LEFT JOIN armour a ON a.name = u.equipped_armour
+       LEFT JOIN gang_members gm ON gm.user_id = u.id
+       LEFT JOIN gangs gn ON gn.id = gm.gang_id AND gn.disbanded_at IS NULL
        WHERE u.id = $1`,
       [userId]
     );
@@ -99,6 +104,11 @@ export async function meRoutes(app: FastifyInstance) {
         deadUntil: user.dead_until,
         jailUntil: user.jail_until,
         hospitalUntil: user.hospital_until,
+        // null until Phase 10's gangs — a disbanded gang's own
+        // membership rows are deleted immediately (see routes/gangs.ts's
+        // disband handler), and the join above also excludes a disbanded
+        // gang defensively, so this can never point at a dead gang.
+        gang: user.gang_name ? { name: user.gang_name, rank: user.gang_rank } : null,
         stats: {
           crimesCommitted: user.crimes_committed,
           crimesSucceeded: user.crimes_succeeded,
