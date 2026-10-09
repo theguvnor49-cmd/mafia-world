@@ -28,6 +28,17 @@ match what I describe, that's the platform having moved a button, not a
 sign that something's wrong — the current name should still be easy to
 spot.
 
+**What's actually reachable from this sandbox (tested, not guessed):**
+I directly tested outbound connections to all four services rather than
+assuming. `github.com` and `api.github.com` are both open — so is the
+git push protocol itself. `supabase.com`, `render.com`, and `vercel.com`
+are all hard-blocked at the network level — the proxy this sandbox sits
+behind refuses the connection outright and says why: "organization
+policy." That's not a credentials gap or an account I'm missing; it's a
+network rule on this whole sandbox, so no API token for those three would
+change the answer. GitHub being open changes Step 1 below — there's now a
+faster option than pushing from your own machine.
+
 ## The shape of it
 
 Three services, each hosting one piece, wired together with environment
@@ -48,21 +59,33 @@ Vercel's real URL.
 
 ## Step 1 — Push this repo to GitHub
 
-This is the one GitHub step I genuinely cannot do from here: this
-session's GitHub access only reaches repositories already connected to it,
-and none is — there's no shortcut around that, it's not a permissions
-setting I can change from my side. From your own machine (or Codespaces,
-or anywhere with git and your own GitHub login):
+Two ways to do this. Either gets the same result — the only difference is
+who runs the `git push`.
 
-1. Create a new, empty repository on GitHub (no README/.gitignore — this
+**Option A — give me a token and I push it (faster).** This session's own
+GitHub access only reaches repositories already connected to it, and none
+is, but `github.com` itself is reachable from here, so a repo-scoped token
+works around that cleanly:
+
+1. On GitHub, create a new, empty repository (no README/.gitignore — this
    repo already has both). Call it `mafia-world` or whatever you like.
-2. Download the zip I've been sending you after each phase (or use
-   whatever copy of this repo you already have locally, as long as it's
-   up to date with the Phase 14 commit) and make sure it's a git repo with
-   the full commit history — if you've only ever had the zips, ask me
-   first and I'll get you the actual `.git` history rather than a
-   snapshot, since `git archive` zips (what I've been sending) don't
-   include it.
+2. github.com → Settings → Developer settings → Personal access tokens →
+   Fine-grained tokens → Generate new token. Scope it to just that one
+   repository, permission "Contents: Read and write," and a short
+   expiry (a week is plenty — this is a one-time push).
+3. Paste the token here, in chat, along with the repo's URL. I'll add it
+   as a remote and push everything — all 15 phases of commit history —
+   right away, then tell you to go delete/let the token expire.
+
+**Option B — push it yourself.** From your own machine (or Codespaces, or
+anywhere with git and your own GitHub login):
+
+1. Create a new, empty repository on GitHub, same as above.
+2. Get a copy of this repo with its full commit history — not one of the
+   zips I've been sending after each phase, which are `git archive`
+   snapshots and don't include the `.git` history. Ask me and I'll get you
+   the real thing (a bundle file or equivalent) if you don't already have
+   one.
 3. `git remote add origin <the URL GitHub gives you>`
 4. `git push -u origin master`
 
@@ -221,11 +244,20 @@ verify from inside this sandbox:
 - Re-ran this project's full verification suite (every backend file
   touched this phase through `node --experimental-strip-types --check`)
   after these changes, same as every phase before this one.
+- Tested outbound network access from this sandbox directly, rather than
+  assuming: `registry.npmjs.org` still fails outright at DNS resolution
+  (confirming "Open questions" #6 is still accurate), `github.com` and
+  `api.github.com` are both fully reachable, and `supabase.com`,
+  `render.com`, and `vercel.com` are all refused at the network level with
+  an explicit "organization policy" response. That last part is why
+  Step 1 above now offers a token-based option — GitHub being open is a
+  real opening; the other three being closed is a real wall, confirmed,
+  not a guess, and not something any token changes.
 
-What's left is everything above that happens on a dashboard I have no
-account on: creating the GitHub repo and giving Render/Vercel access to
-it, signing up for Supabase/Render/Vercel, and typing in the environment
-variables each one needs. None of that is a design decision — there's
-nothing to decide, it's just account creation and following the steps
-above — which is why this is being handed to you as a runbook rather than
-a question.
+What's left is everything that happens on a dashboard I have no account
+on: creating the GitHub repo (or handing me a scoped token so I create
+and push to it instead — Step 1's Option A), signing up for Supabase,
+Render, and Vercel, and typing in the environment variables each one
+needs. None of that is a design decision — there's nothing to decide,
+it's just account creation and following the steps above — which is why
+this is being handed to you as a runbook rather than a question.
