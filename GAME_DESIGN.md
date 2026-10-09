@@ -4,7 +4,7 @@ Living design doc. This is the source of truth for game mechanics — if a new
 feature would conflict with something written here, that gets flagged and
 discussed before changing it. Update this file as each phase is built.
 
-**Status:** Phase 1 (Foundation) complete. See `TODO.md` for what's built vs. designed-only.
+**Status:** Phases 1–2 complete. See `TODO.md` for what's built vs. designed-only.
 
 ---
 
@@ -87,38 +87,40 @@ during implementation:**
 Server time is authoritative everywhere — never trust a browser-side timer
 for anything that matters.
 
-## 8. States / locations
+## 8. States / locations (implemented — `states` table)
 
-The world is divided into states. Players have a current state (defaults to
-"New York" for now — free text on the `users` row until Phase 2 adds a real
-`states` table). Some actions require the acting players to share a state:
-hunting, killing, busting prisoners, certain crimes, gang/territory
-activities. Travel between states (cost, time, risk, cooldown) is a later
-phase; the architecture should allow it to be added without a rewrite.
+8 seeded states (New York, Chicago, Los Angeles, Miami, Las Vegas, Boston,
+Detroit, Atlanta — the set is easy to extend). `users.state` is now a real
+foreign key into `states.name`, not free text. `GET /api/v1/states` lists
+them. Some actions require the acting players to share a state: hunting,
+killing, busting prisoners, certain crimes, gang/territory activities.
+**Travel between states is still not built** — no cost/time/risk/cooldown,
+no endpoint to change state. The table existing is what lets that phase
+slot in later without another schema change.
 
-## 9. Mafia ranks
+## 9. Mafia ranks (implemented — `server/src/mafia/config.ts` + `ranks.ts`)
 
-10 ranks, driven by Mafia XP. The numbers below are each rank's approximate
-*bullets required to kill* before weapon/armour modifiers (used by the
-bullet calculator in Phase 4) — balancing values, not sacred, and will live
-in a config table so they can be tuned without a code rewrite.
+10 ranks, driven by Mafia XP — derived on every read via `getRankForXp()`,
+never stored. `baseBulletsToKill` is each rank's approximate *bullets
+required to kill* before weapon/armour modifiers (used by the bullet
+calculator in Phase 4) and is from the brief directly. `minXp` (the XP
+needed to *reach* each rank) was NOT specified in the brief — the values
+below are an MVP placeholder (still flagged in "Open questions"). All of it
+lives in one config file so it can be tuned without touching the formula
+code that uses it.
 
-| # | Rank | Base bullets to kill |
-|---|------|----------------------|
-| 1 | Rookie | 120 |
-| 2 | Associate | 160 |
-| 3 | Soldier | 210 |
-| 4 | Enforcer | 270 |
-| 5 | Capo | 340 |
-| 6 | Consigliere | 420 |
-| 7 | Underboss | 520 |
-| 8 | Boss | 650 |
-| 9 | Don | 820 |
-| 10 | Legend | 1050 |
-
-**Open question:** the XP required to *reach* each rank isn't specified yet.
-This needs a decision before Phase 2 can derive rank from XP — see "Open
-questions."
+| # | Rank | Min XP (placeholder) | Base bullets to kill |
+|---|------|----------------------|----------------------|
+| 1 | Rookie | 0 | 120 |
+| 2 | Associate | 1,000 | 160 |
+| 3 | Soldier | 3,000 | 210 |
+| 4 | Enforcer | 7,000 | 270 |
+| 5 | Capo | 15,000 | 340 |
+| 6 | Consigliere | 30,000 | 420 |
+| 7 | Underboss | 60,000 | 520 |
+| 8 | Boss | 120,000 | 650 |
+| 9 | Don | 250,000 | 820 |
+| 10 | Legend | 500,000 | 1,050 |
 
 ## 10. Guns (Phase 4 — not yet built)
 
@@ -250,15 +252,19 @@ protection racket. Buyable/upgradeable/robbable/seizable, dropped on death,
 controllable by gangs. Factories produce resources on a timestamp basis
 (never in-memory timers) — e.g. a bullet factory producing N/hour.
 
-## 26. Player profile & statistics
+## 26. Player profile & statistics (implemented)
 
-Public profile: rank, XP, status, state, cash, gang, kills, deaths, jail
-time served, successful/failed busts, crimes committed, and more. Never
-exposes sensitive account info (email, password hash, etc. stay
-server-side only). Track everything from day one via an event/log
-architecture where practical: crimes committed/succeeded/failed, kills,
-deaths, bullets fired/spent, cash earned/lost, cars stolen/melted, jail
-time, arrests, bust attempts, gang membership, gang kills.
+`GET /api/v1/players/:username` returns a public profile: rank, XP, status,
+state, cash, gang (always `null` until Phase 10), and the stats below.
+Never exposes email, password hash, premium points, bullets or equipped
+gear. The 14 statistics from brief section 36 (crimes committed/succeeded/
+failed, kills, deaths, bullets fired/spent, cash earned/lost, cars stolen/
+melted, jail time served, times arrested, successful/failed busts) exist
+as columns on `users`, added in `003_player_stats.sql` — all starting at 0,
+since no gameplay system populates them yet. **Simplification:** this is
+denormalized counters, not a full event-log table. Revisit as a real event
+log once the activity feed (section 44) needs per-event detail rather than
+just totals.
 
 ## 27. Economy
 

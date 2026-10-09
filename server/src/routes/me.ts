@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { pool } from '../db';
 import { requireAuth } from '../auth';
+import { getRankForXp } from '../mafia/ranks';
+import { deriveStatus } from '../mafia/status';
 
 interface UserRow {
   id: string;
@@ -19,15 +21,21 @@ interface UserRow {
   dead_until: string | null;
   jail_until: string | null;
   hospital_until: string | null;
-}
-
-/** Derives ALIVE / DEAD / JAIL / HOSPITAL from timestamps. Server time is authoritative. */
-function deriveStatus(user: UserRow): 'ALIVE' | 'DEAD' | 'JAIL' | 'HOSPITAL' {
-  const now = Date.now();
-  if (user.dead_until && new Date(user.dead_until).getTime() > now) return 'DEAD';
-  if (user.jail_until && new Date(user.jail_until).getTime() > now) return 'JAIL';
-  if (user.hospital_until && new Date(user.hospital_until).getTime() > now) return 'HOSPITAL';
-  return 'ALIVE';
+  crimes_committed: number;
+  crimes_succeeded: number;
+  crimes_failed: number;
+  kills: number;
+  deaths: number;
+  bullets_fired: number;
+  bullets_spent: number;
+  cash_earned: string;
+  cash_lost: string;
+  cars_stolen: number;
+  cars_melted: number;
+  jail_seconds_served: string;
+  times_arrested: number;
+  successful_busts: number;
+  failed_busts: number;
 }
 
 export async function meRoutes(app: FastifyInstance) {
@@ -37,7 +45,10 @@ export async function meRoutes(app: FastifyInstance) {
     const result = await pool.query<UserRow>(
       `SELECT id, username, email, created_at, last_seen, state, cash, premium_points,
               mafia_xp, bullets, equipped_gun, equipped_armour, heat,
-              dead_until, jail_until, hospital_until
+              dead_until, jail_until, hospital_until,
+              crimes_committed, crimes_succeeded, crimes_failed, kills, deaths,
+              bullets_fired, bullets_spent, cash_earned, cash_lost, cars_stolen, cars_melted,
+              jail_seconds_served, times_arrested, successful_busts, failed_busts
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -45,6 +56,8 @@ export async function meRoutes(app: FastifyInstance) {
     if (!user) {
       return reply.code(404).send({ ok: false, error: { code: 'NOT_FOUND', message: 'User not found.' } });
     }
+
+    const rank = getRankForXp(Number(user.mafia_xp));
 
     return reply.send({
       ok: true,
@@ -58,11 +71,29 @@ export async function meRoutes(app: FastifyInstance) {
         cash: Number(user.cash),
         premium_points: user.premium_points,
         mafia_xp: Number(user.mafia_xp),
+        rank: rank.name,
         bullets: user.bullets,
         equipped_gun: user.equipped_gun,
         equipped_armour: user.equipped_armour,
         heat: user.heat,
         status: deriveStatus(user),
+        stats: {
+          crimesCommitted: user.crimes_committed,
+          crimesSucceeded: user.crimes_succeeded,
+          crimesFailed: user.crimes_failed,
+          kills: user.kills,
+          deaths: user.deaths,
+          bulletsFired: user.bullets_fired,
+          bulletsSpent: user.bullets_spent,
+          cashEarned: Number(user.cash_earned),
+          cashLost: Number(user.cash_lost),
+          carsStolen: user.cars_stolen,
+          carsMelted: user.cars_melted,
+          jailSecondsServed: Number(user.jail_seconds_served),
+          timesArrested: user.times_arrested,
+          successfulBusts: user.successful_busts,
+          failedBusts: user.failed_busts,
+        },
       },
     });
   });

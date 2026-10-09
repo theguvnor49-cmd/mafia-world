@@ -16,21 +16,30 @@ Tracks build status against the 15 phases in `GAME_DESIGN.md`. Keep this updated
 - [x] `GET /api/v1/me` (JWT-protected, status derived server-side from timestamps)
 - [x] Frontend: `/`, `/login`, `/register`, `/mafia` (dashboard) — dark-themed, shows cash/points/XP/bullets/heat/state/status
 - [x] `.env.example` for both apps, no secrets committed
-- [x] Verified what could be verified in this sandbox: `001_users.sql` was applied directly against a real local Postgres 16 instance and produces exactly the intended table (columns, defaults, checks, indexes all confirmed with `\d users`); every backend `.ts` file passes a real syntax check (`node --experimental-strip-types --check`). **Not yet verified:** a full `npm install` + running-server + HTTP round-trip test, because this cloud sandbox's network policy blocks `registry.npmjs.org` (and the internal mirror needs credentials this session doesn't have) — see "Open questions" in `GAME_DESIGN.md`. The code was written and reviewed carefully, but treat the first real `npm install && npm run dev` (by you, or once pushed to Render/Vercel) as the real first run.
+- [x] Verified what could be verified in this sandbox for Phase 1: `001_users.sql` was applied directly against a real local Postgres 16 instance and produces exactly the intended table; every backend `.ts` file passes a real syntax check (`node --experimental-strip-types --check`).
+
+**Phase 2 — Core player**
+- [x] `002_states.sql` — real `states` table (8 seeded states), `users.state` now a real foreign key
+- [x] `003_player_stats.sql` — the 14 statistics columns from brief section 36, all starting at 0
+- [x] `server/src/mafia/config.ts` + `ranks.ts` — rank derived from mafia XP, never stored
+- [x] `GET /api/v1/players/:username` — public profile (rank, XP, status, state, cash, stats; never email/password/points/bullets)
+- [x] `GET /api/v1/states`
+- [x] `GET /api/v1/me` now returns rank + the full stats block
+- [x] Frontend: `/mafia/profile/[username]`, dashboard shows rank and links to your own profile
+- [x] Verified the same way as Phase 1 (direct `psql` for the migrations, `node --check` for every backend file) — same npm-install caveat applies, see below.
+
+**Not yet verified for either phase:** a full `npm install` + running-server + HTTP round-trip test. This cloud sandbox's network policy blocks `registry.npmjs.org` (confirmed twice now, in two separate sessions a few weeks apart — once as an explicit "host not allowed"/"organization policy" denial, once as outright DNS failure) and the internal mirror needs credentials this session doesn't have — see "Open questions" in `GAME_DESIGN.md`. The code is written and reviewed carefully, but treat the first real `npm install && npm run dev` (by you, or once pushed to Render/Vercel) as the real first run.
 
 ## In progress
 
-- [ ] Nothing currently in progress — Phase 1 is done and waiting on your review.
+- [ ] Phase 3 — Crime (GTA, cooldowns, heat, jail) — building now.
 
 ## Next
 
 - [ ] **Deployment walkthrough** (Step 8 of the original brief): GitHub repo → Supabase (Postgres) → Render (backend) → Vercel (frontend), one exact step at a time.
-- [ ] **Phase 2 — Core player**: proper `states` table (currently just a free-text column on `users`), rank derived from mafia XP (rank XP thresholds are not yet defined — see "Open questions" in `GAME_DESIGN.md`), full player profile page, player statistics scaffolding.
+- [ ] Phase 4 — Weapons (guns, armour, bullets, equipment, bullet calculator)
 
 ## Future (not started)
-
-- [ ] Phase 3 — Crime (GTA, cooldowns, heat, jail)
-- [ ] Phase 4 — Weapons (guns, armour, bullets, equipment, bullet calculator)
 - [ ] Phase 5 — PvP (search/hunt, kill, death, revive, witnesses)
 - [ ] Phase 6 — Police (jail bust-outs, jail statistics, government framework)
 - [ ] Phase 7 — Cars (15 vehicles, theft, ownership, melting → bullets)

@@ -3,6 +3,8 @@ import cors from '@fastify/cors';
 import { env } from './config';
 import { authRoutes } from './routes/auth';
 import { meRoutes } from './routes/me';
+import { playerRoutes } from './routes/players';
+import { statesRoutes } from './routes/states';
 
 const app = Fastify({ logger: true });
 
@@ -16,6 +18,8 @@ async function main() {
 
   await app.register(authRoutes);
   await app.register(meRoutes);
+  await app.register(playerRoutes);
+  await app.register(statesRoutes);
 
   app.setErrorHandler((error, request, reply) => {
     request.log.error(error);

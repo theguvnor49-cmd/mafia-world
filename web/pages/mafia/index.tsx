@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import { apiFetch, clearToken, getToken } from '../../lib/api';
 import StatusBadge from '../../components/StatusBadge';
 
@@ -9,6 +10,7 @@ interface MeData {
   cash: number;
   premium_points: number;
   mafia_xp: number;
+  rank: string;
   bullets: number;
   heat: number;
   status: 'ALIVE' | 'DEAD' | 'JAIL' | 'HOSPITAL';
@@ -44,7 +46,9 @@ export default function Dashboard() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <div>
             <h1 style={{ margin: 0 }}>{me.username}</h1>
-            <p style={{ margin: '4px 0 0', color: '#999' }}>📍 {me.state}</p>
+            <p style={{ margin: '4px 0 0', color: '#999' }}>
+              {me.rank} · 📍 {me.state}
+            </p>
           </div>
           <StatusBadge status={me.status} />
         </div>
@@ -57,8 +61,14 @@ export default function Dashboard() {
           <Stat label="Heat" value={`${me.heat} / 100`} />
         </div>
 
-        <p style={{ marginTop: 24, color: '#666', fontSize: 13 }}>
-          Crimes, hunting, guns, armour, gangs and everything else in the brief land in later phases —
+        <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
+          <Link href={`/mafia/profile/${me.username}`} style={navLinkStyle}>
+            View full profile →
+          </Link>
+        </div>
+
+        <p style={{ marginTop: 20, color: '#666', fontSize: 13 }}>
+          Hunting, guns, armour, gangs and everything else in the brief land in later phases —
           this dashboard will grow with them.
         </p>
 
@@ -89,4 +99,13 @@ const logoutStyle: CSSProperties = {
   padding: '8px 16px',
   borderRadius: 4,
   cursor: 'pointer',
+};
+const navLinkStyle: CSSProperties = {
+  color: '#fff',
+  fontSize: 14,
+  textDecoration: 'none',
+  border: '1px solid #333',
+  borderRadius: 4,
+  padding: '8px 14px',
+  background: '#16161d',
 };
