@@ -70,19 +70,27 @@ Tracks build status against the 15 phases in `GAME_DESIGN.md`. Keep this updated
 - [x] `bust.test.ts` added; same actually-executed-in-a-scratchpad-script verification as every prior phase's pure logic (17 assertions, including a 50k-trial empirical-rate sanity sweep)
 - [x] Verified the migration via `psql` as usual, **plus** a full manual dry-run of both the success and failure branches of the bust transaction against real seeded rows (confirmed: success frees the prisoner and pays the exact scaled reward; failure leaves the prisoner jailed and moves no cash either direction) — explicitly rolled back, residue confirmed zero afterward
 
+**Phase 7 — Cars (vehicles, theft, melting into bullets)**
+- [x] `008_vehicles.sql` — `vehicles` catalog (15 seeded, 3 per rarity tier) + `user_vehicles` per-instance ownership table + a nullable `vehicle_dropped` column added to the existing `crimes` table
+- [x] `server/src/mafia/vehicles/drop.ts` — `pickVehicleDrop()`, pure weighted-random selection (weight = 101 − theft difficulty), mirroring Phase 5's `pickWitnesses()` style
+- [x] `routes/crimes.ts` extended: on a successful GTA, rolls an independent 20% chance (MVP placeholder — the brief never gives a rate) for a vehicle drop, inside the same transaction as the rest of the crime's rewards
+- [x] New `routes/vehicles.ts`: `GET /api/v1/mafia/cars` (public catalog), `GET .../cars/mine`, `POST .../cars/:id/sell`, `POST .../cars/:id/melt` — sell/melt lock only the acting user's own two rows (no cross-player locking needed, unlike kill/bust)
+- [x] Frontend: `/mafia/cars` (catalog browse + garage with sell/melt buttons); `/mafia/crimes` now mentions a vehicle drop in its activity log when one happens; dashboard gained a "Garage" nav link
+- [x] `drop.test.ts` added; same actually-executed-in-a-scratchpad-script verification as every prior phase's pure logic (16 assertions, including a 100k-trial check that each rarity tier's empirical drop share matches its formula-predicted share, and that the overall drop rate matches the configured 20%)
+- [x] Verified the migration via `psql` as usual, **plus** a full manual dry-run covering all three money/resource-moving paths (a GTA success that drops a Lamborghini, a sell, a melt) against real seeded rows, **plus** a dedicated check confirming the sell/melt ownership-scoping predicate (`WHERE id = $1 AND user_id = $2`) actually blocks a different user from touching someone else's car — all explicitly rolled back, residue confirmed zero after
+
 **Not yet verified for any phase:** a full `npm install` + running-server + HTTP round-trip test, and running the vitest suites *as vitest* rather than as a standalone script. This cloud sandbox's network policy blocks `registry.npmjs.org` (confirmed twice now, in two separate sessions a few weeks apart — once as an explicit "host not allowed"/"organization policy" denial, once as outright DNS failure) and the internal mirror needs credentials this session doesn't have — see "Open questions" in `GAME_DESIGN.md`. The code is written and reviewed carefully, but treat the first real `npm install && npm run dev` (by you, or once pushed to Render/Vercel) as the real first run.
 
 ## In progress
 
-- [ ] None right now. Phases 1-6 are all committed; see the message alongside this update for where things stand.
+- [ ] None right now. Phases 1-7 are all committed. Pushing straight through the remaining phases per Glenn's instruction — no more per-phase check-ins unless a genuine design decision blocks progress.
 
 ## Next
 
-- [ ] Phase 7 — Cars (15 vehicles, theft, ownership, melting → bullets)
+- [ ] Phase 8 — Co-op crimes (4-hour jobs, up to 6-player teams, roles)
 - [ ] **Deployment walkthrough** (Step 8 of the original brief): GitHub repo → Supabase (Postgres) → Render (backend) → Vercel (frontend), one exact step at a time.
 
 ## Future (not started)
-- [ ] Phase 8 — Co-op crimes (4-hour jobs, 6-player teams, roles)
 - [ ] Phase 9 — Hospital (recovery, activities)
 - [ ] Phase 10 — Gangs (max 10, roles, treasury, territory, destruction)
 - [ ] Phase 11 — Businesses / factories

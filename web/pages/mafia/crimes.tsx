@@ -17,6 +17,7 @@ interface GtaOutcome {
   heat: number;
   jailSeconds: number;
   jailUntil: string | null;
+  vehicleDropped: { name: string; rarity: string } | null;
 }
 
 interface LogEntry {
@@ -72,8 +73,11 @@ export default function CrimesPage() {
     }
 
     const outcome = res.data;
+    const vehicleText = outcome.vehicleDropped
+      ? ` You also drove off with a ${outcome.vehicleDropped.rarity} ${outcome.vehicleDropped.name} — check the garage.`
+      : '';
     const text = outcome.success
-      ? `Stole a car and made $${outcome.cashReward.toLocaleString()} (+${outcome.xpReward} XP).`
+      ? `Stole a car and made $${outcome.cashReward.toLocaleString()} (+${outcome.xpReward} XP).${vehicleText}`
       : outcome.jailSeconds > 0
         ? `Botched it and got ${outcome.jailSeconds}s in jail (+${outcome.xpReward} XP).`
         : `Botched it (+${outcome.xpReward} XP).`;

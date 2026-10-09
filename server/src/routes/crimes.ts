@@ -5,7 +5,14 @@ import { getRankForXp } from '../mafia/ranks';
 import { deriveStatus } from '../mafia/status';
 import { computeEffectiveHeat, clampHeat } from '../mafia/heat';
 import { resolveGta } from '../mafia/crimes/gta';
+import { pickVehicleDrop } from '../mafia/vehicles/drop';
 import { GTA } from '../mafia/config';
+
+interface VehicleCatalogRow {
+  name: string;
+  rarity: string;
+  theft_difficulty: number;
+}
 
 interface CrimeStateRow {
   mafia_xp: string;
@@ -101,6 +108,22 @@ export async function crimeRoutes(app: FastifyInstance) {
         const gtaNextAt = new Date(now.getTime() + GTA.COOLDOWN_SECONDS * 1000);
         const jailUntil = result.jailSeconds > 0 ? new Date(now.getTime() + result.jailSeconds * 1000) : null;
 
+        // Vehicle drop (brief sections 21-22): only ever rolled on a
+        // success — "a successful GTA can randomly produce a vehicle" —
+        // using the same transaction so the drop and the crime's other
+        // rewards land atomically together or not at all.
+        let droppedVehicle: VehicleCatalogRow | null = null;
+        if (result.success) {
+          const catalogResult = await client.query<VehicleCatalogRow>(
+            'SELECT name, rarity, theft_difficulty FROM vehicles'
+          );
+          droppedVehicle = pickVehicleDrop(
+            catalogResult.rows.map((v) => ({ ...v, theftDifficulty: v.theft_difficulty })),
+            Math.random(),
+            Math.random()
+          );
+        }
+
         await client.query(
           `UPDATE users SET
              cash = cash + $1,
@@ -114,8 +137,9 @@ export async function crimeRoutes(app: FastifyInstance) {
              crimes_failed = crimes_failed + $8,
              cash_earned = cash_earned + $1,
              jail_seconds_served = jail_seconds_served + $9,
-             times_arrested = times_arrested + $10
-           WHERE id = $11`,
+             times_arrested = times_arrested + $10,
+             cars_stolen = cars_stolen + $11
+           WHERE id = $12`,
           [
             result.cashReward,
             result.xpReward,
@@ -127,14 +151,30 @@ export async function crimeRoutes(app: FastifyInstance) {
             result.success ? 0 : 1,
             result.jailSeconds,
             result.jailSeconds > 0 ? 1 : 0,
+            droppedVehicle ? 1 : 0,
             userId,
           ]
         );
 
+        if (droppedVehicle) {
+          await client.query('INSERT INTO user_vehicles (user_id, vehicle_name) VALUES ($1, $2)', [
+            userId,
+            droppedVehicle.name,
+          ]);
+        }
+
         await client.query(
-          `INSERT INTO crimes (user_id, crime_type, success, cash_reward, xp_reward, heat_change, jail_seconds)
-           VALUES ($1, 'gta', $2, $3, $4, $5, $6)`,
-          [userId, result.success, result.cashReward, result.xpReward, result.heatChange, result.jailSeconds]
+          `INSERT INTO crimes (user_id, crime_type, success, cash_reward, xp_reward, heat_change, jail_seconds, vehicle_dropped)
+           VALUES ($1, 'gta', $2, $3, $4, $5, $6, $7)`,
+          [
+            userId,
+            result.success,
+            result.cashReward,
+            result.xpReward,
+            result.heatChange,
+            result.jailSeconds,
+            droppedVehicle?.name ?? null,
+          ]
         );
 
         return {
@@ -144,6 +184,7 @@ export async function crimeRoutes(app: FastifyInstance) {
           heat: newHeat,
           jailSeconds: result.jailSeconds,
           jailUntil: jailUntil ? jailUntil.toISOString() : null,
+          vehicleDropped: droppedVehicle ? { name: droppedVehicle.name, rarity: droppedVehicle.rarity } : null,
         };
       });
 

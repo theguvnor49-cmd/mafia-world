@@ -4,7 +4,7 @@ Living design doc. This is the source of truth for game mechanics — if a new
 feature would conflict with something written here, that gets flagged and
 discussed before changing it. Update this file as each phase is built.
 
-**Status:** Phases 1–6 complete. See `TODO.md` for what's built vs. designed-only.
+**Status:** Phases 1–7 complete. See `TODO.md` for what's built vs. designed-only.
 
 ---
 
@@ -305,13 +305,62 @@ function of elapsed real time, matching the "never build around
 setInterval" rule (section 30). Decay rate (~1 point per 3 minutes) is an
 MVP placeholder, not specified in the brief.
 
-## 19. Vehicles & melting (Phase 7 — not yet built)
+## 19. Vehicles & melting (implemented — `vehicles`/`user_vehicles` tables, `GET /api/v1/mafia/cars`, `POST .../cars/:id/sell|melt`)
 
-~15 stealable vehicles (rarity: Common/Uncommon/Rare/Epic/Legendary), each
-with value, theft difficulty, "bullet-melting" value, optional resale. GTA
-can randomly produce one. Cars can be sold, stored, used, or melted into
-bullets — the resource loop `crime → steal → melt → bullets → PvP`.
-Balance carefully so bullets can't become infinite.
+15 vehicles, 3 per rarity tier (Common/Uncommon/Rare/Epic/Legendary),
+seeded in `008_vehicles.sql` with the brief's own fields: rarity, value,
+theft difficulty, bullet-melting value, resale value. `theft_difficulty`
+(1-100) doubles as the inverse weight for which vehicle drops — a Common
+car (low difficulty) comes up far more often than a Legendary one (high
+difficulty). Ownership is per-instance (`user_vehicles`, one row per owned
+car), not a count, since cars are later disposed of individually.
+
+On a **successful** GTA (brief: "a successful GTA can randomly produce a
+vehicle" — tied to success only, never a failure consolation prize),
+`routes/crimes.ts` rolls a separate, independent chance
+(`CARS.DROP_CHANCE_ON_SUCCESS`, 20%, MVP placeholder — the brief never
+gives a rate) inside the same transaction as the rest of the crime's
+rewards. If it hits, `mafia/vehicles/drop.ts`'s `pickVehicleDrop()` — pure,
+weighted-random, mirroring `pickWitnesses()`'s style — chooses which of the
+15 vehicles, a `user_vehicles` row is inserted, `cars_stolen` increments,
+and the existing `crimes` log row records which vehicle (a new nullable
+`vehicle_dropped` column on that table, since a drop is an attribute of
+the crime event, not a separate kind of event).
+
+`GET /api/v1/mafia/cars` is the public catalog (mirrors `weapons/guns`);
+`GET .../cars/mine` lists what you own; `POST .../cars/:id/sell` pays
+`resale_value` in cash and removes the car; `POST .../cars/:id/melt` grants
+`bullet_melt_value` bullets, increments `cars_melted`, and removes the car.
+Neither requires being ALIVE — same reasoning as gun/armour purchases
+(Phase 4): pure inventory/cash transactions, not criminal activity. Both
+lock only the acting user's own two rows (the owned-car row, scoped by
+`WHERE id = $1 AND user_id = $2`, and the user's own row) — no cross-player
+locking needed here, unlike kill/bust, since nobody else's row is ever
+touched; the ownership-scoping predicate was specifically dry-run tested
+to confirm a different user's query can't see or lock someone else's car.
+
+**Balancing the resource loop ("bullets cannot become infinite too
+easily"):** the actual scarcity comes from composing three things that
+already exist rather than a special-cased limiter — GTA's own 10-minute
+cooldown bounds how often a drop can even be rolled for, the 20%
+drop-on-success chance means most successes grant no car at all, and
+melting *consumes* the specific owned car instance (no re-melting the same
+car, no infinite loop on one drop). Bullet income from melting is bounded
+by the same cooldown that already bounds cash/XP income from crime — not a
+faster parallel printing press.
+
+**MVP simplifications flagged:**
+- `resale_value` is a flat 60% markdown of `value` for every vehicle — the
+  brief lists both fields but gives no ratio between them; selling stolen
+  goods to a fence for less than full value is the more realistic reading.
+- "Cars can eventually be... Used" (brief section 21) has no concrete
+  mechanic anywhere in the brief beyond ownership itself — left
+  unimplemented, same "eventually" treatment as armour's undefined
+  durability/repair (section 11).
+- No dedicated sell/melt history log, unlike busts (the brief never says
+  "all sales/melts should be logged" the way it explicitly does for
+  busts) — the `cars_stolen`/`cars_melted` running counters (existed since
+  Phase 2) are what persists once a specific car's row is gone.
 
 ## 20. Police / jail / bust-outs (implemented — `busts` table, `POST /api/v1/mafia/jail/bust`)
 
@@ -404,11 +453,14 @@ Never exposes email, password hash, premium points, bullets or equipped
 gear. The 14 statistics from brief section 36 (crimes committed/succeeded/
 failed, kills, deaths, bullets fired/spent, cash earned/lost, cars stolen/
 melted, jail time served, times arrested, successful/failed busts) exist
-as columns on `users`, added in `003_player_stats.sql` — all starting at 0,
-since no gameplay system populates them yet. **Simplification:** this is
-denormalized counters, not a full event-log table. Revisit as a real event
-log once the activity feed (section 44) needs per-event detail rather than
-just totals.
+as columns on `users`, added ahead of need in `003_player_stats.sql`. As of
+Phase 7, every one of them is actually populated by some gameplay system
+except `cash_lost` — nothing in the game yet causes an *involuntary* cash
+loss (no player-vs-player robbery exists yet; kills/busts/crimes don't
+move cash out of a victim's balance), so it still always reads 0. **Simplification:**
+this is denormalized counters, not a full event-log table. Revisit as a
+real event log once the activity feed (section 44) needs per-event detail
+rather than just totals.
 
 ## 27. Economy
 
@@ -468,7 +520,7 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
 ## 33. Phases (see `TODO.md` for live status)
 
 1. Foundation 2. Core player 3. Crime 4. Weapons 5. PvP 6. Police
-7. Cars 8. Co-op 9. Hospital 10. Gangs 11. Businesses/factories
+7. Cars (implemented) 8. Co-op 9. Hospital 10. Gangs 11. Businesses/factories
 12. Economy/balancing 13. Admin tools 14. Polish 15. Production deployment
 
 ---
@@ -548,6 +600,12 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
     per the formula, but nothing stops attempting again instantly). Same
     treatment as item 12's search-cost gap — flagged, not silently
     assumed away.
+15. **Vehicle drop rate (20%) and resale-as-60%-of-value** (section 19) —
+    neither is specified in the brief, which only says a successful GTA
+    "can randomly produce" a vehicle and lists value/resale as separate
+    fields with no ratio. Both are easy to retune (`CARS` in `config.ts`
+    for the drop rate, `008_vehicles.sql`'s seed data for resale) once
+    there's real playtesting data on how fast bullets accumulate.
 
 None of these block Phase 1; they're flagged here so they get a real
 decision (not just an assumption baked in silently) before the phases that

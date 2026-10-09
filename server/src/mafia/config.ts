@@ -108,3 +108,16 @@ export const BUST = {
   BASE_REWARD: 25_000,
   REWARD_BONUS_PER_SUCCESSFUL_BUST: 4_000,
 };
+
+/** GTA vehicle system (brief sections 21-22). The brief says only that "a
+ * successful GTA CAN randomly produce a vehicle" — it never gives a rate,
+ * so DROP_CHANCE_ON_SUCCESS is an MVP placeholder. Picked deliberately low:
+ * combined with GTA's existing 10-minute cooldown and melting consuming
+ * the car (one-time, not repeatable per car), this is the main lever for
+ * the brief's own instruction to "balance carefully so bullets cannot
+ * become infinite too easily" — bullet income from melting is bounded by
+ * the same cooldown that already bounds cash/XP income, not a faster
+ * parallel loop. */
+export const CARS = {
+  DROP_CHANCE_ON_SUCCESS: 0.2,
+};

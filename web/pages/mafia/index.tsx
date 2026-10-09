@@ -140,6 +140,9 @@ export default function Dashboard() {
           <Link href="/mafia/bust" style={navLinkStyle}>
             Jail bust-out →
           </Link>
+          <Link href="/mafia/cars" style={navLinkStyle}>
+            Garage →
+          </Link>
         </div>
 
         <p style={{ marginTop: 20, color: '#666', fontSize: 13 }}>

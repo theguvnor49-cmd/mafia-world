@@ -2,7 +2,7 @@
 
 A persistent, browser-based, text-driven multiplayer mafia/crime game. See [`GAME_DESIGN.md`](./GAME_DESIGN.md) for the full design spec and [`TODO.md`](./TODO.md) for build status.
 
-This repo is being built in phases with Claude acting as lead developer. **Phases 1–6 are complete**: foundation (auth, health check, dashboard), core player (ranks, states, public profiles), crime (Grand Theft Auto, heat), weapons (guns, armour, bullet calculator), PvP (hunt/search, kill resolution, death/revive, witness statements), and police (jail bust-outs). See `TODO.md` for the live, detailed status and `GAME_DESIGN.md` for how each system works.
+This repo is being built in phases with Claude acting as lead developer. **Phases 1–7 are complete**: foundation (auth, health check, dashboard), core player (ranks, states, public profiles), crime (Grand Theft Auto, heat), weapons (guns, armour, bullet calculator), PvP (hunt/search, kill resolution, death/revive, witness statements), police (jail bust-outs), and cars (vehicle theft, ownership, melting into bullets). See `TODO.md` for the live, detailed status and `GAME_DESIGN.md` for how each system works.
 
 ## Stack
 
@@ -95,8 +95,10 @@ Open `http://localhost:3000`, click **Create Character**, register an account, a
 
 **Police:** a failed crime jails you for 60-120 seconds (brief section 24, built back in Phase 3); another player can now attempt to bust you out (`/mafia/bust`) if they're in your state — base 25% success, shifting with their own bust track record, clamped 15-80%, paying them $25,000+ on success.
 
+**Cars:** a successful Grand Theft Auto has a 20% chance of also handing you one of 15 vehicles (`/mafia/cars` shows the full catalog and your garage) — rarer ones are harder to steal and show up less often. Sell an owned car for cash or melt it into bullets; GTA's existing 10-minute cooldown is what keeps that bullet supply from spiraling.
+
 Nothing here trusts the client: passwords are hashed with bcrypt, sessions are JWTs verified server-side, every currency/combat operation runs inside a database transaction with row locking, and all player state is read from Postgres on every request.
 
 ## Next up
 
-See `TODO.md`. Short version: Phase 7 (cars — theft, ownership, melting into bullets) is next, or we walk through GitHub → Supabase → Render → Vercel to get this live on free hosting first — your call. One thing worth your own look before going further: `GAME_DESIGN.md` section 16 and "Open questions" #10 flag a deliberate deviation from the brief in how selling witness information works, for currency-safety reasons — worth reading before you rely on it.
+See `TODO.md`. Continuing straight through Phase 8 (co-op crimes) and onward — no more per-phase pauses unless something genuinely needs a decision only you can make. One thing worth your own look whenever you do stop to review: `GAME_DESIGN.md` section 16 and "Open questions" #10 flag a deliberate deviation from the brief in how selling witness information works, for currency-safety reasons.
