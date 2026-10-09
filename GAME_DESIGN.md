@@ -4,7 +4,7 @@ Living design doc. This is the source of truth for game mechanics — if a new
 feature would conflict with something written here, that gets flagged and
 discussed before changing it. Update this file as each phase is built.
 
-**Status:** Phases 1–2 complete. See `TODO.md` for what's built vs. designed-only.
+**Status:** Phases 1–3 complete. See `TODO.md` for what's built vs. designed-only.
 
 ---
 
@@ -192,18 +192,42 @@ they saw (victim, killer, time, location) to another player — an
 information economy that enables diplomacy, revenge and espionage.
 Witnesses are not forced to expose what they know publicly.
 
-## 17. Crimes (Phase 3 — not yet built)
+## 17. Crimes (implemented — `POST /api/v1/mafia/crime/gta`)
 
-First crime: **Grand Theft Auto.** Cooldown 10 minutes. Success chance
-`0.78 − heat×0.004 + rank×0.01`, clamped 20–90%. Success: $18,000–$75,000 +
-rank bonus, 20–60 XP + rank bonus, +6–14 heat. Failure: 6–18 XP, +10–22
-heat, 1–2 minutes jail. All configurable, not sacred.
+Grand Theft Auto, exactly as specified: 10 minute cooldown, success chance
+`0.78 − heat×0.004 + rank×0.01` clamped 20–90%, success $18,000–$75,000 +
+rank bonus / 20–60 XP + rank bonus / +6–14 heat, failure 6–18 XP / +10–22
+heat / 60–120s jail. Rank-bonus multipliers ($2,000/XP 2 per rank level)
+aren't specified in the brief — MVP placeholders, in `mafia/config.ts`.
 
-## 18. Heat
+**Tested finding, not a bug:** with realistic inputs (heat 0–100, rank
+0–9) the formula's ceiling is 0.78 + 9×0.01 = **0.87**, never the full 0.90
+cap — see `getGtaSuccessChance` and its test. The 90% clamp is a safety
+backstop, not currently reachable through rank/heat alone. Worth knowing
+before tuning rather than assuming 90% is achievable today.
 
-0–100, represents police attention. Higher heat lowers crime success and
-raises jail/police risk. Decays over time (proper decay system, not
-permanent accumulation).
+Fully transactional: the route locks the player's row (`SELECT ... FOR
+UPDATE`) for the duration, checks status (must be ALIVE) and cooldown,
+resolves the attempt via a pure function (`mafia/crimes/gta.ts`, unit
+tested — see below), then atomically updates cash/XP/heat/cooldown/jail
+and the relevant statistics counters and inserts one row into the new
+`crimes` log table — all in one DB transaction, so two concurrent attempts
+by the same player can't both land. `GET /api/v1/mafia/crime/gta/status`
+exposes cooldown + status + effective heat for the frontend countdown.
+
+**Simplification:** `jail_seconds_served` is credited with the *full*
+sentence at the moment of sentencing, not accrued over the time actually
+served. Fine for now since nothing can shorten a sentence yet; once
+Phase 6 bust-outs exist, a bust will need to credit less than the full
+amount.
+
+## 18. Heat (implemented — `mafia/heat.ts`)
+
+0–100, decays continuously from a timestamp (`heat_updated_at`) rather
+than via any running process — `computeEffectiveHeat()` is a pure
+function of elapsed real time, matching the "never build around
+setInterval" rule (section 30). Decay rate (~1 point per 3 minutes) is an
+MVP placeholder, not specified in the brief.
 
 ## 19. Vehicles & melting (Phase 7 — not yet built)
 
@@ -345,16 +369,24 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
    7-day JWTs. Easy to change.
 6. **Full local runtime verification.** The Claude cloud sandbox this repo
    was built in has a network policy that blocks `registry.npmjs.org` /
-   `pypi.org` outright (confirmed: direct requests and proxied requests both
-   come back "host not allowed" / "organization policy"; an internal
-   Anthropic mirror exists but needs credentials this session doesn't have).
-   So `npm install` couldn't be run here. What *was* verified in-sandbox:
-   `server/migrations/001_users.sql` applied cleanly to a real local
-   Postgres 16 and produced exactly the intended schema, and every backend
-   `.ts` file passed a real syntax check. What's still unverified: actually
-   starting the Fastify server and the Next.js app and exercising the HTTP
-   endpoints. Do that first via the README's "Running it locally" steps (or
-   once deployed to Render/Vercel) and report back anything that breaks.
+   `pypi.org` outright — confirmed twice, in two sessions a few weeks apart
+   (once an explicit "host not allowed"/"organization policy" denial, once
+   outright DNS failure); an internal Anthropic mirror exists but needs
+   credentials this session doesn't have. So `npm install` has never been
+   run here, and vitest (added in Phase 3) has never actually executed.
+   What *has* been verified without it, every phase: every migration
+   applied directly via `psql` against a real local Postgres 16 and
+   produced exactly the intended schema; every backend `.ts` file passes a
+   real syntax check (`node --experimental-strip-types --check`); and for
+   Phase 3 specifically, the GTA/heat math in `mafia/crimes/gta.ts` and
+   `mafia/heat.ts` was *actually executed* (not just syntax-checked) via a
+   manually-detyped standalone copy run with plain `node` — 20 assertions,
+   all passing, including the 0.87-ceiling finding above. What's still
+   unverified: starting the Fastify server and the Next.js app for real and
+   exercising the HTTP endpoints end-to-end, and running the vitest suites
+   as vitest (not as a standalone script). Do that first via the README's
+   "Running it locally" steps (or once deployed to Render/Vercel) and
+   report back anything that breaks.
 
 None of these block Phase 1; they're flagged here so they get a real
 decision (not just an assumption baked in silently) before the phases that

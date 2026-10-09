@@ -28,16 +28,24 @@ Tracks build status against the 15 phases in `GAME_DESIGN.md`. Keep this updated
 - [x] Frontend: `/mafia/profile/[username]`, dashboard shows rank and links to your own profile
 - [x] Verified the same way as Phase 1 (direct `psql` for the migrations, `node --check` for every backend file) — same npm-install caveat applies, see below.
 
-**Not yet verified for either phase:** a full `npm install` + running-server + HTTP round-trip test. This cloud sandbox's network policy blocks `registry.npmjs.org` (confirmed twice now, in two separate sessions a few weeks apart — once as an explicit "host not allowed"/"organization policy" denial, once as outright DNS failure) and the internal mirror needs credentials this session doesn't have — see "Open questions" in `GAME_DESIGN.md`. The code is written and reviewed carefully, but treat the first real `npm install && npm run dev` (by you, or once pushed to Render/Vercel) as the real first run.
+**Phase 3 — Crime**
+- [x] `004_crimes.sql` — `users.gta_next_at` + `users.heat_updated_at`, new `crimes` log table (indexed on `user_id, created_at`)
+- [x] `server/src/mafia/heat.ts` — `computeEffectiveHeat` (pure, timestamp-based decay, no timers/cron) + `clampHeat`
+- [x] `server/src/mafia/crimes/gta.ts` — `getGtaSuccessChance` + `resolveGta`, pure functions, config-driven
+- [x] `GET /api/v1/mafia/crime/gta/status`, `POST /api/v1/mafia/crime/gta` — transactional (`SELECT ... FOR UPDATE`), checks ALIVE + cooldown, one atomic update + crime-log insert
+- [x] Frontend: `/mafia/crimes` — cooldown countdown, attempt button, session-local activity log; dashboard links to it
+- [x] `vitest` added as a devDependency; `gta.test.ts` + `heat.test.ts` mirror the assertions already run as a standalone script (below)
+- [x] **Actually executed**, not just syntax-checked: the GTA/heat pure logic was run via a manually-detyped standalone copy with plain `node` — 20 assertions, all passing. Caught one flawed test expectation in the process (see `GAME_DESIGN.md` section 17 — the brief's 90% success-chance cap isn't reachable through rank/heat alone; realistic ceiling is 87%). That finding is now also asserted in `gta.test.ts`.
+
+**Not yet verified for any phase:** a full `npm install` + running-server + HTTP round-trip test, and running the vitest suites *as vitest* rather than as a standalone script. This cloud sandbox's network policy blocks `registry.npmjs.org` (confirmed twice now, in two separate sessions a few weeks apart — once as an explicit "host not allowed"/"organization policy" denial, once as outright DNS failure) and the internal mirror needs credentials this session doesn't have — see "Open questions" in `GAME_DESIGN.md`. The code is written and reviewed carefully, but treat the first real `npm install && npm run dev` (by you, or once pushed to Render/Vercel) as the real first run.
 
 ## In progress
 
-- [ ] Phase 3 — Crime (GTA, cooldowns, heat, jail) — building now.
+- [ ] Phase 4 — Weapons (guns, armour, bullets, equipment, bullet calculator) — building now.
 
 ## Next
 
 - [ ] **Deployment walkthrough** (Step 8 of the original brief): GitHub repo → Supabase (Postgres) → Render (backend) → Vercel (frontend), one exact step at a time.
-- [ ] Phase 4 — Weapons (guns, armour, bullets, equipment, bullet calculator)
 
 ## Future (not started)
 - [ ] Phase 5 — PvP (search/hunt, kill, death, revive, witnesses)

@@ -65,6 +65,9 @@ export default function Dashboard() {
           <Link href={`/mafia/profile/${me.username}`} style={navLinkStyle}>
             View full profile →
           </Link>
+          <Link href="/mafia/crimes" style={navLinkStyle}>
+            Crimes →
+          </Link>
         </div>
 
         <p style={{ marginTop: 20, color: '#666', fontSize: 13 }}>
