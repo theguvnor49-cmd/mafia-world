@@ -1,0 +1,20 @@
+-- 015_cash_spent.sql
+-- Phase 14 (Polish): closes "Open questions" #9 in GAME_DESIGN.md.
+--
+-- `cash_lost` (since 003_player_stats.sql) only ever tracked involuntary
+-- losses (robbed, fined). Every voluntary purchase since then — guns,
+-- armour, businesses, gang creation, hospital treatment — debited `cash`
+-- with no counterpart statistic, flagged at the time as "easy to add
+-- later" (see routes/weapons.ts's own long-standing comment). This is
+-- that addition: a plain running total of voluntary spend, same shape as
+-- `cash_earned`/`cash_lost` (a BIGINT counter, never decremented).
+--
+-- Deliberately excludes gang treasury deposits (routes/gangs.ts) — a
+-- deposit moves cash into a shared pool the depositor (or teammates)
+-- still has a claim on via withdrawal or shared territory, so it isn't
+-- "spent" the way a gun purchase permanently converts cash into a
+-- non-cash asset. Also excludes every gambling bet (the casino and
+-- hospital's own narrow gamble) — a wager has a return distribution, not
+-- a guaranteed loss, the same reasoning that already kept bets out of
+-- `cash_lost`.
+ALTER TABLE users ADD COLUMN cash_spent BIGINT NOT NULL DEFAULT 0 CHECK (cash_spent >= 0);

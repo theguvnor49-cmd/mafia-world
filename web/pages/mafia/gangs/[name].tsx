@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { apiFetch, getToken } from '../../../lib/api';
+import NavBar from '../../../components/NavBar';
 
 // Mirrors GANGS in server/src/mafia/config.ts.
 const TERRITORY_CLAIM_COST = 500_000;
@@ -193,6 +194,7 @@ export default function GangDetailPage() {
   return (
     <main style={pageStyle}>
       <div style={{ width: '100%', maxWidth: 640 }}>
+        <NavBar />
         <Link href="/mafia/gangs" style={{ color: '#999', fontSize: 13, textDecoration: 'none' }}>
           ← All gangs
         </Link>

@@ -1,8 +1,8 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/router';
-import Link from 'next/link';
 import { apiFetch, getToken } from '../../../lib/api';
 import StatusBadge from '../../../components/StatusBadge';
+import NavBar from '../../../components/NavBar';
 
 interface PlayerProfile {
   username: string;
@@ -61,9 +61,7 @@ export default function PlayerProfilePage() {
   return (
     <main style={pageStyle}>
       <div style={{ width: '100%', maxWidth: 640 }}>
-        <Link href="/mafia" style={{ color: '#999', fontSize: 13, textDecoration: 'none' }}>
-          ← Back to dashboard
-        </Link>
+        <NavBar />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '16px 0 24px' }}>
           <div>

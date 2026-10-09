@@ -56,9 +56,9 @@ const calculatorQuerySchema = z.object({
  *   - Buying doesn't require being ALIVE — it's a pure cash transaction,
  *     unlike crimes which require being out of jail/hospital. Not
  *     specified in the brief either way.
- *   - A purchase debits `cash` but does not increment the `cash_lost`
- *     statistic — that counter is for involuntary losses, not voluntary
- *     spending. There's no `cash_spent` counter yet; easy to add later.
+ *   - A purchase debits `cash` and increments `cash_spent` (added in the
+ *     Phase 14 polish pass) but never `cash_lost` — that counter is for
+ *     involuntary losses, not voluntary spending.
  */
 export async function weaponsRoutes(app: FastifyInstance) {
   app.get('/api/v1/mafia/weapons/guns', async (_request, reply) => {
@@ -128,7 +128,11 @@ export async function weaponsRoutes(app: FastifyInstance) {
           );
         }
 
-        await client.query('UPDATE users SET cash = cash - $1, equipped_gun = $2 WHERE id = $3', [price, name, userId]);
+        await client.query('UPDATE users SET cash = cash - $1, cash_spent = cash_spent + $1, equipped_gun = $2 WHERE id = $3', [
+          price,
+          name,
+          userId,
+        ]);
 
         return { equippedGun: name, cash: cash - price, spent: price };
       });
@@ -176,7 +180,7 @@ export async function weaponsRoutes(app: FastifyInstance) {
           );
         }
 
-        await client.query('UPDATE users SET cash = cash - $1, equipped_armour = $2 WHERE id = $3', [
+        await client.query('UPDATE users SET cash = cash - $1, cash_spent = cash_spent + $1, equipped_armour = $2 WHERE id = $3', [
           price,
           name,
           userId,

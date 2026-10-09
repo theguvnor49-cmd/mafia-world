@@ -192,7 +192,14 @@ export async function gangRoutes(app: FastifyInstance) {
           throw err;
         }
 
-        await client.query('UPDATE users SET cash = cash - $1 WHERE id = $2', [GANGS.CREATION_COST, userId]);
+        // Straight from the founder's own pocket (see CREATION_COST's own
+        // comment in config.ts) — a permanent, voluntary spend, so it
+        // counts toward cash_spent (Phase 14 polish) the same as a gun or
+        // business purchase would.
+        await client.query('UPDATE users SET cash = cash - $1, cash_spent = cash_spent + $1 WHERE id = $2', [
+          GANGS.CREATION_COST,
+          userId,
+        ]);
         await client.query('INSERT INTO gang_members (gang_id, user_id, rank) VALUES ($1, $2, $3)', [gangId, userId, 'Boss']);
 
         return { id: gangId, name, rank: 'Boss' as const };
@@ -485,6 +492,12 @@ export async function gangRoutes(app: FastifyInstance) {
           throw new GangError(402, 'INSUFFICIENT_FUNDS', `You don't have $${amount.toLocaleString()} to deposit.`, { needed: amount, have: cash });
         }
 
+        // Deliberately NOT cash_spent (Phase 14 polish, GAME_DESIGN.md
+        // "Open questions" #9): a deposit moves cash into a shared pool
+        // the depositor (or teammates) still has a claim on via
+        // withdrawal or shared territory — it isn't gone the permanent
+        // way a gun or business purchase is, so it doesn't count as
+        // "spent."
         await client.query('UPDATE users SET cash = cash - $1 WHERE id = $2', [amount, userId]);
         await client.query('UPDATE gangs SET treasury = treasury + $1 WHERE id = $2', [amount, gang.id]);
 

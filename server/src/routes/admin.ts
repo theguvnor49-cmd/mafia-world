@@ -42,6 +42,7 @@ interface FullUserRow {
   deaths: number;
   cash_earned: string;
   cash_lost: string;
+  cash_spent: string;
   times_arrested: number;
   successful_busts: number;
   failed_busts: number;
@@ -51,7 +52,7 @@ interface FullUserRow {
 const FULL_USER_COLUMNS = `
   id, username, email, created_at, last_seen, state, cash, premium_points, mafia_xp, bullets, heat,
   dead_until, jail_until, hospital_until, crimes_committed, crimes_succeeded, crimes_failed, kills, deaths,
-  cash_earned, cash_lost, times_arrested, successful_busts, failed_busts, is_admin
+  cash_earned, cash_lost, cash_spent, times_arrested, successful_busts, failed_busts, is_admin
 `;
 
 function toDetail(user: FullUserRow) {
@@ -82,6 +83,7 @@ function toDetail(user: FullUserRow) {
       deaths: user.deaths,
       cashEarned: Number(user.cash_earned),
       cashLost: Number(user.cash_lost),
+      cashSpent: Number(user.cash_spent),
       timesArrested: user.times_arrested,
       successfulBusts: user.successful_busts,
       failedBusts: user.failed_busts,
@@ -141,10 +143,11 @@ const grantSchema = z.object({
  *     building a privilege-escalation surface with zero brief guidance
  *     on who should be allowed to grant admin in the first place. These
  *     routes manage *players*, never *who holds admin*.
- *   - **Grants don't touch `cash_earned`/`cash_lost`.** Those stats
- *     represent real gameplay income/loss (see "Open questions" #9) —
- *     an admin correction is neither, so it's logged to `admin_actions`
- *     instead of blending into a player's own earned/lost totals.
+ *   - **Grants don't touch `cash_earned`/`cash_lost`/`cash_spent`.**
+ *     Those stats represent real gameplay income/loss/spend (the last
+ *     one added in Phase 14, closing "Open questions" #9) — an admin
+ *     correction is none of those, so it's logged to `admin_actions`
+ *     instead of blending into a player's own totals.
  *   - **`requireAdmin` re-checks the database on every request** rather
  *     than trusting a JWT claim, so revoking admin access takes effect
  *     on the very next request, not after a 7-day token expires (see

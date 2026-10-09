@@ -261,7 +261,10 @@ export async function businessRoutes(app: FastifyInstance) {
           throw err;
         }
 
-        await client.query('UPDATE users SET cash = cash - $1 WHERE id = $2', [typeDef.basePrice, userId]);
+        await client.query('UPDATE users SET cash = cash - $1, cash_spent = cash_spent + $1 WHERE id = $2', [
+          typeDef.basePrice,
+          userId,
+        ]);
         await logEvent(client, userId, businessId, 'buy', -typeDef.basePrice, 0);
 
         return { id: businessId, type: typeDef.type, state: user.state, level: 1 };
@@ -300,7 +303,7 @@ export async function businessRoutes(app: FastifyInstance) {
         }
 
         const newLevel = business.level + 1;
-        await client.query('UPDATE users SET cash = cash - $1 WHERE id = $2', [cost, userId]);
+        await client.query('UPDATE users SET cash = cash - $1, cash_spent = cash_spent + $1 WHERE id = $2', [cost, userId]);
         await client.query('UPDATE businesses SET level = $1 WHERE id = $2', [newLevel, business.id]);
         await logEvent(client, userId, business.id, 'upgrade', -cost, 0);
 

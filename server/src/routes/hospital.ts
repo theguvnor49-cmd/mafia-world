@@ -160,7 +160,7 @@ export async function hospitalRoutes(app: FastifyInstance) {
         );
 
         await client.query(
-          `UPDATE users SET cash = cash - $1, hospital_until = $2
+          `UPDATE users SET cash = cash - $1, cash_spent = cash_spent + $1, hospital_until = $2
            WHERE id = $3`,
           [HOSPITAL.TREATMENT_COST, newUntil, userId]
         );

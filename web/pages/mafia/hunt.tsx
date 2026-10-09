@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/router';
-import Link from 'next/link';
 import { apiFetch, getToken } from '../../lib/api';
+import NavBar from '../../components/NavBar';
 
 interface SearchStatus {
   hunting: boolean;
@@ -98,9 +98,7 @@ export default function HuntPage() {
   return (
     <main style={pageStyle}>
       <div style={{ width: '100%', maxWidth: 560 }}>
-        <Link href="/mafia" style={{ color: '#999', fontSize: 13, textDecoration: 'none' }}>
-          ← Back to dashboard
-        </Link>
+        <NavBar />
 
         <h1 style={{ margin: '16px 0 4px' }}>Hunt</h1>
         <p style={{ color: '#999', marginTop: 0 }}>

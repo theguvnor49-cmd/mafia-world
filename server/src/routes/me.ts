@@ -33,6 +33,7 @@ interface UserRow {
   bullets_spent: number;
   cash_earned: string;
   cash_lost: string;
+  cash_spent: string;
   cars_stolen: number;
   cars_melted: number;
   jail_seconds_served: string;
@@ -54,7 +55,7 @@ export async function meRoutes(app: FastifyInstance) {
               u.equipped_armour, a.bonus_bullets AS armour_bonus_bullets, a.multiplier AS armour_multiplier,
               u.heat, u.dead_until, u.jail_until, u.hospital_until,
               u.crimes_committed, u.crimes_succeeded, u.crimes_failed, u.kills, u.deaths,
-              u.bullets_fired, u.bullets_spent, u.cash_earned, u.cash_lost, u.cars_stolen, u.cars_melted,
+              u.bullets_fired, u.bullets_spent, u.cash_earned, u.cash_lost, u.cash_spent, u.cars_stolen, u.cars_melted,
               u.jail_seconds_served, u.times_arrested, u.successful_busts, u.failed_busts,
               gn.name AS gang_name, gm.rank AS gang_rank, u.is_admin
        FROM users u
@@ -126,6 +127,7 @@ export async function meRoutes(app: FastifyInstance) {
           bulletsSpent: user.bullets_spent,
           cashEarned: Number(user.cash_earned),
           cashLost: Number(user.cash_lost),
+          cashSpent: Number(user.cash_spent),
           carsStolen: user.cars_stolen,
           carsMelted: user.cars_melted,
           jailSecondsServed: Number(user.jail_seconds_served),

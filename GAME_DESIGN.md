@@ -4,7 +4,7 @@ Living design doc. This is the source of truth for game mechanics — if a new
 feature would conflict with something written here, that gets flagged and
 discussed before changing it. Update this file as each phase is built.
 
-**Status:** Phases 1–13 complete. See `TODO.md` for what's built vs. designed-only.
+**Status:** Phases 1–14 complete. See `TODO.md` for what's built vs. designed-only.
 
 ---
 
@@ -1076,13 +1076,56 @@ gate.
     admin page itself yet — a reasonable Polish-phase addition once
     there's been real usage to review.
 
+## 33a. Phase 14 — polish (implemented)
+
+Like Phase 12, this isn't a new system — it's a sweep of small, already-
+flagged loose ends, plus one piece of cross-cutting UX debt that had
+quietly built up across 17 page files over 13 phases.
+
+**Cross-page navigation.** Every `/mafia/*` subpage used to show only a
+bare "← Back to dashboard" text link — the only way to get from, say,
+Armoury to Hunt was always back through the dashboard first. A new
+`web/components/NavBar.tsx` renders the dashboard's own set of nav links
+at the top of every subpage instead (14 files got it; a 15th,
+`gangs/[name].tsx`, keeps its own "← All gangs" breadcrumb *alongside* it,
+since that one's a more specific affordance NavBar doesn't replace).
+Self-detects the current page via `useRouter()` rather than taking a
+`current` prop, so every one of those insertions is the identical
+`<NavBar />` — a deliberate choice to keep a mechanical, repeated edit
+across many files as low-risk as possible. Deliberately excludes the
+dashboard's own conditional "Admin →" link (would need `isAdmin` threaded
+through as a prop from every caller, for a link ordinary play never
+needs).
+
+**`cash_spent` tracking** (closes "Open questions" #9) — see section 31a's
+sibling entry above and the Open Questions list below for the full
+reasoning. In short: `cash_lost` only ever covered involuntary loss;
+voluntary spending (guns, armour, businesses, gang creation, hospital
+treatment) now has its own counter, deliberately excluding gang treasury
+deposits and gambling wagers, neither of which is a permanent loss.
+
+**Verification note:** the frontend changes this phase went through
+something more rigorous than prior phases' "manually reviewed" `.tsx`
+treatment: a real standalone `tsc` type-check of the *entire* `web/`
+project (every page, not just the changed ones), using hand-written
+ambient stubs for `react`/`next` since `npm install` still can't run
+here. The first pass against a minimal stub surfaced a pile of warnings;
+rather than wave them away, each warning class was checked against an
+already-shipped file to confirm it was a stub gap and not a real bug, and
+the stub was then filled in properly (`useRef`, a real `React` namespace
+with `FormEvent`/`ChangeEvent`/`MouseEvent`, `useRouter`'s `pathname`/
+`query`, typed `input`/`button`/`form` elements) until the *entire*
+project — old files and new — type-checked clean with zero errors. That's
+a stronger result than any prior phase got, not just this one's own
+changes.
+
 ## 34. Phases (see `TODO.md` for live status)
 
 1. Foundation 2. Core player 3. Crime 4. Weapons 5. PvP 6. Police
 7. Cars (implemented) 8. Co-op (implemented) 9. Hospital (implemented)
 10. Gambling + Gangs (implemented) 11. Businesses/factories (implemented)
 12. Economy/balancing (implemented) 13. Admin tools (implemented)
-14. Polish 15. Production deployment
+14. Polish (implemented) 15. Production deployment
 
 ---
 
@@ -1129,10 +1172,20 @@ gate.
    free. Matches the single `equipped_gun`/`equipped_armour` columns that
    have existed since Phase 1. An inventory table is a reasonably easy
    addition later if a kept locker is wanted instead of buy-equips-ever.
-9. **Purchases don't increment `cash_lost`.** That statistic (brief section
-   36) reads as being for involuntary losses (robbed, fined, etc.); a gun/
-   armour purchase is voluntary spending, so it's left out. There's no
-   `cash_spent` counter yet — easy to add if that distinction matters later.
+9. **Resolved (Phase 14).** Purchases don't increment `cash_lost` — that
+   statistic (brief section 36) reads as being for involuntary losses
+   (robbed, fined, etc.), so voluntary spending was always left out of
+   it, correctly. What used to be missing — a `cash_spent` counter for
+   that voluntary side — now exists: `015_cash_spent.sql` added
+   `users.cash_spent`, wired into every permanent voluntary spend (guns,
+   armour, business buy/upgrade, gang creation, hospital treatment).
+   Deliberately excludes gang treasury deposits (the cash isn't gone —
+   the depositor still has a claim on it via withdrawal or shared
+   territory) and every gambling wager (a bet has a return distribution,
+   not a guaranteed loss, the same reasoning that already kept bets out
+   of `cash_lost`). Surfaced in `/me` and the admin detail view, same
+   shape as `cashEarned`/`cashLost`; left out of the public profile,
+   matching those two.
 10. **Witness `sell` is two endpoints, not the brief's literal one** (see
     section 16) — a safety call, not a numeric placeholder: the witness
     lists a price, the buyer pays it themselves. Worth a deliberate look

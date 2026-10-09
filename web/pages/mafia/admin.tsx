@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } 
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { apiFetch, getToken } from '../../lib/api';
+import NavBar from '../../components/NavBar';
 
 interface MeData {
   isAdmin: boolean;
@@ -41,6 +42,7 @@ interface PlayerDetail {
     deaths: number;
     cashEarned: number;
     cashLost: number;
+    cashSpent: number;
     timesArrested: number;
     successfulBusts: number;
     failedBusts: number;
@@ -176,9 +178,7 @@ export default function AdminPage() {
   return (
     <main style={pageStyle}>
       <div style={{ width: '100%', maxWidth: 680 }}>
-        <Link href="/mafia" style={{ color: '#999', fontSize: 13, textDecoration: 'none' }}>
-          ← Back to dashboard
-        </Link>
+        <NavBar />
 
         <h1 style={{ margin: '16px 0 4px' }}>Admin</h1>
         <p style={{ color: '#999', marginTop: 0 }}>
@@ -232,7 +232,7 @@ export default function AdminPage() {
               <Stat label="Bullets" value={detail.bullets.toLocaleString()} />
               <Stat label="Heat" value={`${detail.heat} / 100`} />
               <Stat label="Kills / Deaths" value={`${detail.stats.kills} / ${detail.stats.deaths}`} />
-              <Stat label="Cash earned / lost" value={`$${detail.stats.cashEarned.toLocaleString()} / $${detail.stats.cashLost.toLocaleString()}`} />
+              <Stat label="Cash earned / spent / lost" value={`$${detail.stats.cashEarned.toLocaleString()} / $${detail.stats.cashSpent.toLocaleString()} / $${detail.stats.cashLost.toLocaleString()}`} />
               <Stat label="Times arrested" value={String(detail.stats.timesArrested)} />
             </div>
 
