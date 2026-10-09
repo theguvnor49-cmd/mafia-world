@@ -20,6 +20,7 @@ interface MeData {
   jailUntil: string | null;
   hospitalUntil: string | null;
   gang: { name: string; rank: string } | null;
+  isAdmin: boolean;
 }
 
 /** mm:ss — matches the brief's own jail mockup ("Time remaining: 01:12").
@@ -213,11 +214,16 @@ export default function Dashboard() {
           <Link href="/mafia/businesses" style={navLinkStyle}>
             Businesses →
           </Link>
+          {me.isAdmin && (
+            <Link href="/mafia/admin" style={{ ...navLinkStyle, borderColor: '#7f1d1d', color: '#f87171' }}>
+              Admin →
+            </Link>
+          )}
         </div>
 
         <p style={{ marginTop: 20, color: '#666', fontSize: 13 }}>
-          Economy balancing, admin tools, and polish land in later phases — this dashboard will
-          grow with them.
+          Polish and production deployment land in later phases — this dashboard will grow with
+          them.
         </p>
 
         <button onClick={() => { clearToken(); router.push('/'); }} style={logoutStyle}>

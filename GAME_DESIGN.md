@@ -4,7 +4,7 @@ Living design doc. This is the source of truth for game mechanics — if a new
 feature would conflict with something written here, that gets flagged and
 discussed before changing it. Update this file as each phase is built.
 
-**Status:** Phases 1–12 complete. See `TODO.md` for what's built vs. designed-only.
+**Status:** Phases 1–13 complete. See `TODO.md` for what's built vs. designed-only.
 
 ---
 
@@ -1021,13 +1021,68 @@ initial armour sets · 10 initial ranks · GTA cooldown 10 min · Co-op crime
 every 4h, max 6 players · Witnesses up to 3 random online users · Jail from
 failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
 
-## 33. Phases (see `TODO.md` for live status)
+## 33. Admin tools (implemented)
+
+The brief gives almost nothing to build from here — one passing mention,
+"[premium points are] granted/admin-controlled" (section 15/27) — so this
+phase's scope is an MVP judgment call, same treatment as every other
+under-specified phase in this project, not a brief-literal build.
+
+**What exists:** `users.is_admin` (a plain boolean — one privileged tier,
+not a roles table, the same "simplest reading the brief actually
+supports" call already made for gangs and businesses). `requireAdmin`, a
+Fastify preHandler that re-checks `is_admin` fresh from the database on
+*every* request rather than trusting a JWT claim — tokens here last 7
+days, and baking admin status into one would mean a revoked admin keeps
+their powers for up to a week; re-checking costs one indexed lookup and
+means revoked means revoked, immediately. Four endpoints under
+`/api/v1/admin/players`: a searchable directory, a full per-player detail
+view (everything `/me` would show about yourself, for any player), and
+two grant endpoints (cash, premium points) plus a clear-status action
+(un-sticks a player from DEAD/JAIL/HOSPITAL). Every write logs to
+`admin_actions` (admin, target, action, signed amount, timestamp) — the
+same "financial operations stay traceable" principle (section 28) every
+other money-moving system here already follows with its own event-log
+table. A new "Admin →" link appears on the dashboard when `/me` reports
+`isAdmin: true`; the actual security boundary is server-side
+(`requireAdmin` on every route), so that link is a convenience, not a
+gate.
+
+**Deliberate scope boundaries, each a real decision, not an oversight:**
+
+  - **No self-service "promote to admin" endpoint exists anywhere.**
+    `is_admin` is granted by whoever controls the database, directly:
+    `UPDATE users SET is_admin = true WHERE username = '...';` (see
+    README.md). Building a promotion endpoint needs its own bootstrap
+    rule — who's allowed to grant the *first* admin, and the brief gives
+    no basis for answering that — so rather than invent one, these tools
+    manage *players*, never *who holds admin*.
+  - **Grants are signed deltas, not absolute sets**, and don't touch
+    `cash_earned`/`cash_lost`. A positive amount grants, a negative
+    amount deducts/corrects (e.g. undoing a bug's over-payment); the
+    existing `CHECK (cash >= 0)` / `CHECK (premium_points >= 0)`
+    constraints on `users` are what actually stop an over-deduction —
+    caught and surfaced as a clean `WOULD_GO_NEGATIVE` error, not app
+    logic re-deriving the same check. `cash_earned`/`cash_lost` represent
+    real gameplay income/loss ("Open questions" #9); an admin correction
+    is neither, so it's logged to `admin_actions` instead of quietly
+    inflating a player's own stats.
+  - **No ban/suspend system.** The brief never mentions moderation at
+    all — nothing was invented for it. "Clear status" only un-sticks a
+    player from a *game-state* timer (dead/jail/hospital); it has no
+    power to lock anyone out of the game.
+  - **No audit UI beyond the raw `admin_actions` table.** It's logged for
+    traceability and future reference, not surfaced anywhere in the
+    admin page itself yet — a reasonable Polish-phase addition once
+    there's been real usage to review.
+
+## 34. Phases (see `TODO.md` for live status)
 
 1. Foundation 2. Core player 3. Crime 4. Weapons 5. PvP 6. Police
 7. Cars (implemented) 8. Co-op (implemented) 9. Hospital (implemented)
 10. Gambling + Gangs (implemented) 11. Businesses/factories (implemented)
-12. Economy/balancing (implemented) 13. Admin tools 14. Polish
-15. Production deployment
+12. Economy/balancing (implemented) 13. Admin tools (implemented)
+14. Polish 15. Production deployment
 
 ---
 
@@ -1252,6 +1307,19 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
     unvalidated guess dressed up as a fix. Worth a real look once there's
     actual data on whether players bother building up businesses at all
     when active grinding alone outpaces them this much.
+31. **Admin tools: no self-service "promote to admin" endpoint**
+    (section 33) — `is_admin` can only be set by whoever controls the
+    database directly via SQL. Deliberate: a promotion endpoint needs its
+    own bootstrap rule (who's allowed to grant the *first* admin?) the
+    brief gives no basis for, and building one anyway would turn this
+    column into a privilege-escalation surface. Revisit only if multiple
+    trusted operators genuinely need to be added often enough that a raw
+    `UPDATE` becomes real friction.
+32. **Admin tools: no ban/suspend system** (section 33) — the brief never
+    mentions moderation at all, so nothing was built for it. "Clear
+    status" only resets game-state timers (dead/jail/hospital); it can't
+    lock a player out. Worth real scope once there's an actual moderation
+    need, rather than guessed at now.
 
 None of these block Phase 1; they're flagged here so they get a real
 decision (not just an assumption baked in silently) before the phases that

@@ -41,6 +41,7 @@ interface UserRow {
   failed_busts: number;
   gang_name: string | null;
   gang_rank: string | null;
+  is_admin: boolean;
 }
 
 export async function meRoutes(app: FastifyInstance) {
@@ -55,7 +56,7 @@ export async function meRoutes(app: FastifyInstance) {
               u.crimes_committed, u.crimes_succeeded, u.crimes_failed, u.kills, u.deaths,
               u.bullets_fired, u.bullets_spent, u.cash_earned, u.cash_lost, u.cars_stolen, u.cars_melted,
               u.jail_seconds_served, u.times_arrested, u.successful_busts, u.failed_busts,
-              gn.name AS gang_name, gm.rank AS gang_rank
+              gn.name AS gang_name, gm.rank AS gang_rank, u.is_admin
        FROM users u
        LEFT JOIN guns g ON g.name = u.equipped_gun
        LEFT JOIN armour a ON a.name = u.equipped_armour
@@ -109,6 +110,12 @@ export async function meRoutes(app: FastifyInstance) {
         // disband handler), and the join above also excludes a disbanded
         // gang defensively, so this can never point at a dead gang.
         gang: user.gang_name ? { name: user.gang_name, rank: user.gang_rank } : null,
+        // Phase 13 — lets the frontend conditionally show an "Admin →"
+        // nav link. Showing this is a convenience only, not a security
+        // boundary: every actual admin route re-checks `is_admin` itself
+        // (`requireAdmin`), so a tampered client can't gain anything by
+        // forging this field.
+        isAdmin: user.is_admin,
         stats: {
           crimesCommitted: user.crimes_committed,
           crimesSucceeded: user.crimes_succeeded,
