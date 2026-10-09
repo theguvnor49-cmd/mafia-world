@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { env } from './config';
+import { pool } from './db';
 
 const SALT_ROUNDS = 10;
 
@@ -51,4 +52,17 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply):
       error: { code: 'UNAUTHORIZED', message: 'Invalid or expired token.' },
     });
   }
+
+  // Phase 5's witness system (brief section 18) needs "online" to mean
+  // something, so every authenticated request refreshes `last_seen`.
+  // Debounced to a 1-minute floor so a chatty frontend doesn't turn this
+  // into a write-per-request firehose. Deliberately not awaited — this is
+  // best-effort freshness, not something the current request should wait
+  // on — but errors are still caught so a dropped update can never surface
+  // as an unhandled rejection or fail the request it rode in on.
+  pool
+    .query(`UPDATE users SET last_seen = now() WHERE id = $1 AND last_seen < now() - interval '1 minute'`, [
+      request.user.userId,
+    ])
+    .catch((err) => request.log.error(err, 'Failed to refresh last_seen'));
 }

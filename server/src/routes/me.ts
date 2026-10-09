@@ -92,6 +92,13 @@ export async function meRoutes(app: FastifyInstance) {
           : null,
         heat: user.heat,
         status: deriveStatus(user),
+        // The raw timers, not just the derived status string — the
+        // dashboard's DEAD banner and /mafia/revive need to show *when*
+        // (brief section 17's "Dead until: 18:42 tomorrow" example), not
+        // just *that*.
+        deadUntil: user.dead_until,
+        jailUntil: user.jail_until,
+        hospitalUntil: user.hospital_until,
         stats: {
           crimesCommitted: user.crimes_committed,
           crimesSucceeded: user.crimes_succeeded,

@@ -79,3 +79,18 @@ export const GTA = {
 export const BULLET_CALC = {
   MIN_BULLETS: 25,
 };
+
+/** PvP: hunt/search, kill, death, revive, witnesses (brief sections
+ * 14-18). SEARCH_HOURS, DEATH_HOURS, REVIVE_PREMIUM_POINTS and
+ * MAX_WITNESSES are from the brief directly. ONLINE_WINDOW_SECONDS is an
+ * MVP placeholder — the brief says witnesses are drawn from "random online
+ * players" but never defines "online" numerically; here it means
+ * `last_seen` within this many seconds, kept fresh by `requireAuth`
+ * bumping it on every authenticated request (see auth.ts). */
+export const PVP = {
+  SEARCH_HOURS: 4,
+  DEATH_HOURS: 24,
+  REVIVE_PREMIUM_POINTS: 50,
+  MAX_WITNESSES: 3,
+  ONLINE_WINDOW_SECONDS: 5 * 60,
+};

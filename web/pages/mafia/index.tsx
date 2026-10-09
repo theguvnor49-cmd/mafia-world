@@ -16,6 +16,7 @@ interface MeData {
   equippedArmour: { name: string; bonusBullets: number; multiplier: number } | null;
   heat: number;
   status: 'ALIVE' | 'DEAD' | 'JAIL' | 'HOSPITAL';
+  deadUntil: string | null;
 }
 
 export default function Dashboard() {
@@ -55,6 +56,17 @@ export default function Dashboard() {
           <StatusBadge status={me.status} />
         </div>
 
+        {me.status === 'DEAD' && (
+          <div style={deadBannerStyle}>
+            <span>
+              🔴 You&apos;re dead{me.deadUntil ? ` until ${new Date(me.deadUntil).toLocaleString()}` : ''}.
+            </span>
+            <Link href="/mafia/revive" style={{ color: '#fff', fontWeight: 600, textDecoration: 'underline' }}>
+              Revive
+            </Link>
+          </div>
+        )}
+
         <div style={statGridStyle}>
           <Stat label="Cash" value={`$${me.cash.toLocaleString()}`} />
           <Stat label="Premium Points" value={me.premium_points.toLocaleString()} />
@@ -78,11 +90,17 @@ export default function Dashboard() {
           <Link href="/mafia/armoury" style={navLinkStyle}>
             Armoury →
           </Link>
+          <Link href="/mafia/hunt" style={navLinkStyle}>
+            Hunt →
+          </Link>
+          <Link href="/mafia/witness" style={navLinkStyle}>
+            Witness statements →
+          </Link>
         </div>
 
         <p style={{ marginTop: 20, color: '#666', fontSize: 13 }}>
-          Hunting, gangs and everything else in the brief land in later phases — this dashboard
-          will grow with them.
+          Gangs and everything else in the brief land in later phases — this dashboard will grow
+          with them.
         </p>
 
         <button onClick={() => { clearToken(); router.push('/'); }} style={logoutStyle}>
@@ -112,6 +130,18 @@ const logoutStyle: CSSProperties = {
   padding: '8px 16px',
   borderRadius: 4,
   cursor: 'pointer',
+};
+const deadBannerStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 12,
+  background: '#7f1d1d',
+  border: '1px solid #b91c1c',
+  borderRadius: 8,
+  padding: '12px 16px',
+  marginBottom: 20,
+  fontSize: 14,
 };
 const navLinkStyle: CSSProperties = {
   color: '#fff',

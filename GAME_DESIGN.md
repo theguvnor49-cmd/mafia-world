@@ -4,7 +4,7 @@ Living design doc. This is the source of truth for game mechanics — if a new
 feature would conflict with something written here, that gets flagged and
 discussed before changing it. Update this file as each phase is built.
 
-**Status:** Phases 1–4 complete. See `TODO.md` for what's built vs. designed-only.
+**Status:** Phases 1–5 complete. See `TODO.md` for what's built vs. designed-only.
 
 ---
 
@@ -181,39 +181,89 @@ combination, never "what would it take to kill `<username>`." Combat
 itself (and any calculator grounded in a real target) is never
 client-authoritative and isn't built until Phase 5.
 
-## 13. Hunt / search (Phase 5 — not yet built)
+## 13. Hunt / search (implemented — `hunts` table, `POST/GET /api/v1/mafia/search/...`)
 
-A player can't attack instantly — they search first. Search takes 4 hours
-(server-timestamp-based: `started_at` / `completes_at`, never
-`setTimeout`). On completion the target's state at that moment is revealed.
-The attacker must reach that state, and the target must *still* be there
-when the kill is attempted — if the target moves, the hunt fails and must
-be redone. This is what makes movement a real strategic choice instead of
-"instant global assassination."
+A player can't attack instantly — they search first. Search takes 4 hours,
+server-timestamp-based (`started_at`/`completes_at`, never `setTimeout`).
+One active hunt per hunter at a time, enforced by a **unique partial
+index** (`006_pvp.sql`), not just an app-level check — two concurrent
+"start a search" calls from the same hunter can't both land.
 
-## 14. Kill resolution (Phase 5 — not yet built)
+On completion the target's state *at that moment* is revealed — but there's
+no scheduler to snapshot it exactly at the 4-hour mark (section 30: never a
+running process), so `hunts.target_state` stays NULL until the first read
+after `completes_at` has passed (`GET .../search/status`, or the kill
+attempt itself if that happens first), at which point it's captured once
+and frozen forever, the same lazy-evaluation pattern as heat decay. The
+attacker must reach that state, and the target must *still* be there when
+the kill is attempted — if the target moves, the hunt fails and is consumed
+(must be redone).
+
+**Travel doesn't exist yet** (section 8/original brief section 9 calls it
+an "eventually" feature, architecture just has to allow it cleanly) — so
+today, almost every player is still sitting in their registration-default
+state, which makes the location-matching checks below practically a no-op
+for most games. Not a bug: the checks are real and ready for when travel
+ships.
+
+## 14. Kill resolution (implemented — `POST /api/v1/mafia/kill`)
 
 Requires, in order: attacker alive → target exists and is alive → search
 completed → attacker in the discovered state → target still in that state
-→ bullets required calculated server-side → attacker has enough bullets →
-bullets deducted atomically → target set DEAD 24h → witnesses generated →
-combat event logged → search consumed. All inside one DB transaction with
-row locking on both players, to prevent double-spend / double-kill (see
-section 20, "Transactions").
+→ attacker has a gun equipped → bullets required calculated server-side
+(via `mafia/bulletCalculator.ts` — the exact same function the Phase 4
+calculator uses) → attacker has enough bullets → bullets deducted
+atomically → target set DEAD 24h → witnesses generated → combat event
+logged (`kills` table) → search consumed. All inside one DB transaction.
 
-## 15. Death & revive (Phase 5 — not yet built)
+Both players' rows are locked with `SELECT ... FOR UPDATE`, **in
+sorted-id order** rather than attacker-then-target — if two players attack
+each other at the same moment, locking in a consistent order is what
+prevents them from deadlocking each other (brief section 54's "lock
+attacker / lock target" doesn't mention this, but it's necessary once you
+have two arbitrary rows being locked from two different directions).
+
+A kill increments both `bullets_fired` and `bullets_spent` by the same
+amount — there's no "missed shots" mechanic yet to tell them apart.
+
+## 15. Death & revive (implemented — `POST /api/v1/mafia/revive`)
 
 Death lasts 24 hours (`dead_until = now() + 24h`). Revive costs **50
-premium points** (MVP price — configurable) and brings the player back
-immediately. Real-money purchases are out of scope for now; for testing,
-points are simply granted/admin-controlled.
+premium points** (from the brief directly) and brings the player back
+immediately (`dead_until` set to `NULL`). Real-money purchases are out of
+scope for now; for testing, points are simply granted/admin-controlled.
+Dashboard shows a banner with a link to `/mafia/revive` while dead.
 
-## 16. Witness system (Phase 5 — not yet built)
+## 16. Witness system (implemented — `witness_statements` table, `GET /api/v1/mafia/witness/me`, `POST .../sell`, `POST .../:id/buy`)
 
-On a kill, up to 3 random *online* players witness it and can sell what
-they saw (victim, killer, time, location) to another player — an
-information economy that enables diplomacy, revenge and espionage.
-Witnesses are not forced to expose what they know publicly.
+On a kill, up to `PVP.MAX_WITNESSES` (3) random *online* players witness
+it — selected via `mafia/pvp/witnesses.ts`'s `pickWitnesses()`, a pure,
+unit-tested sampling function. "Online" means `last_seen` within
+`PVP.ONLINE_WINDOW_SECONDS` (5 minutes, MVP placeholder — the brief never
+defines it numerically); `requireAuth` now bumps `last_seen` on every
+authenticated request (debounced to once a minute) so that threshold means
+something, instead of only updating at login as before Phase 5.
+
+**Deliberate, safety-motivated deviation from the brief's literal single
+`witness/sell` endpoint**, flagged here because it's a real design choice,
+not just a numeric placeholder: a witness calling `sell` only *lists*
+their statement at an asking price — it never charges a specific named
+buyer directly. Actually moving cash requires a second endpoint
+(`POST .../witness/:id/buy`) that the **buyer** calls themselves. Reasoning:
+the brief gives no consent/escrow mechanism for the seller's action, and
+letting one player's unilateral action debit another named player's
+balance — with that target chosen from data as simple as a username —
+would be a real currency-fairness hole (brief section 28's "never trust...
+prevent forged/fake" principle), not just an MVP shortcut. The brief's own
+"[SELL INFORMATION]" UI moment and "players should eventually be able to
+negotiate prices" read naturally as the actual trade being arranged
+out-of-band (chat, Discord, in person) with this API just settling it —
+which this two-step design still supports. There's deliberately no
+marketplace/browse-listings endpoint either — the brief says "witnesses
+should NOT necessarily expose the information publicly," so a buyer has to
+already know the statement's ID (told to them directly by the witness).
+Double-sale is prevented by locking the statement row before checking
+`sold` (brief section 53's explicit test scenario).
 
 ## 17. Crimes (implemented — `POST /api/v1/mafia/crime/gta`)
 
@@ -423,6 +473,27 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
    36) reads as being for involuntary losses (robbed, fined, etc.); a gun/
    armour purchase is voluntary spending, so it's left out. There's no
    `cash_spent` counter yet — easy to add if that distinction matters later.
+10. **Witness `sell` is two endpoints, not the brief's literal one** (see
+    section 16) — a safety call, not a numeric placeholder: the witness
+    lists a price, the buyer pays it themselves. Worth a deliberate look
+    before relying on it for anything real, since it's the one place this
+    project has knowingly built something other than the most literal
+    reading of the brief.
+11. **"Online" window (5 minutes) for witness selection.** The brief says
+    "random online players" but never defines online numerically — see
+    `PVP.ONLINE_WINDOW_SECONDS`. `last_seen` is now refreshed on every
+    authenticated request (debounced to 1/minute) specifically so this
+    threshold means something; before Phase 5 it only updated at login.
+12. **No cost or cooldown on starting a search**, beyond the 4-hour search
+    itself. Not specified either way in the brief. Starting one does
+    require being ALIVE (brief section 16: "cannot perform normal
+    activities while dead").
+13. **Travel between states still doesn't exist** (see section 13) — the
+    hunt/kill location checks are real but close to a no-op today since
+    almost nobody can leave their starting state yet. The brief calls
+    travel an "eventually" feature by design, so this isn't a gap so much
+    as a dependency worth knowing about before judging how PvP actually
+    plays.
 
 None of these block Phase 1; they're flagged here so they get a real
 decision (not just an assumption baked in silently) before the phases that

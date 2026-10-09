@@ -48,19 +48,30 @@ Tracks build status against the 15 phases in `GAME_DESIGN.md`. Keep this updated
 - [x] `bulletCalculator.test.ts` added; same actually-executed-in-a-scratchpad-script verification as Phase 3 (hand-worked examples + a 40-combination sanity sweep across every real rank × gun × armour combo)
 - [x] Verified the migration directly via `psql`, including proving the new FK rejects a bogus gun name and that the `/api/v1/me` join returns correct values for a real equipped gun/armour
 
+**Phase 5 — PvP**
+- [x] `006_pvp.sql` — `hunts`, `kills`, `witness_statements` tables. One active hunt per hunter enforced by a **unique partial index**, not just app logic.
+- [x] `server/src/mafia/pvp/witnesses.ts` — `pickWitnesses()`, pure random-sampling, unit tested + actually executed (8 assertions, including a 30k-trial uniformity check)
+- [x] `POST /api/v1/mafia/search/start`, `GET .../search/status` — lazy state-reveal-on-first-read (no scheduler), requires ALIVE
+- [x] `POST /api/v1/mafia/kill` — the big one: both players locked in **sorted-id order** (deadlock-safe against a simultaneous reverse attack), full brief-section-54 check order, bullets via the same `calculateBulletsToKill` Phase 4 built, witnesses generated inline
+- [x] `POST /api/v1/mafia/revive` — transactional, checks DEAD + premium points, sets `dead_until = NULL`
+- [x] `GET /api/v1/mafia/witness/me`, `POST .../witness/sell`, `POST .../witness/:id/buy` — **note the extra endpoint**: selling only lists a price, buying is the buyer's own action. Deliberate safety deviation from the brief's literal one-endpoint design — flagged prominently in `GAME_DESIGN.md` section 16 and "Open questions" #10, worth your own look.
+- [x] `requireAuth` now refreshes `last_seen` on every request (debounced to 1/minute) so "online" witnesses means something
+- [x] Frontend: `/mafia/hunt`, `/mafia/revive`, `/mafia/witness`; dashboard shows a DEAD banner linking to revive
+- [x] Fixed a real gap while building this: `GET /api/v1/me` was querying `dead_until`/`jail_until`/`hospital_until` but never returning them (only the derived `status` string) — the new DEAD banner needs the actual timestamp, so it's now returned as `deadUntil`/`jailUntil`/`hospitalUntil`.
+- [x] Verified every migration via `psql` as usual, **plus** two full manual dry-runs of every SQL statement in the kill transaction and the witness buy/sell transaction against real seeded rows (correct bullet math end to end: 120 base × 1.00 gun + 40 armour bonus × 1.10 armour multiplier = 176; correct cash movement on a witness sale) — this phase's transactions are complex enough that syntax-checking alone didn't feel like enough.
+
 **Not yet verified for any phase:** a full `npm install` + running-server + HTTP round-trip test, and running the vitest suites *as vitest* rather than as a standalone script. This cloud sandbox's network policy blocks `registry.npmjs.org` (confirmed twice now, in two separate sessions a few weeks apart — once as an explicit "host not allowed"/"organization policy" denial, once as outright DNS failure) and the internal mirror needs credentials this session doesn't have — see "Open questions" in `GAME_DESIGN.md`. The code is written and reviewed carefully, but treat the first real `npm install && npm run dev` (by you, or once pushed to Render/Vercel) as the real first run.
 
 ## In progress
 
-- [ ] None right now — see "Next". Phase 5 (PvP) is substantial enough (hunt/search, kill resolution, death/revive, witnesses) that it's worth a quick check-in before diving in; see the message alongside this update.
+- [ ] None right now. Phases 1-5 are all committed; see the message alongside this update for where things stand and what's worth a look before continuing further.
 
 ## Next
 
-- [ ] Phase 5 — PvP (search/hunt, kill, death, revive, witnesses)
+- [ ] Phase 6 — Police (jail bust-outs, jail statistics, government framework)
 - [ ] **Deployment walkthrough** (Step 8 of the original brief): GitHub repo → Supabase (Postgres) → Render (backend) → Vercel (frontend), one exact step at a time.
 
 ## Future (not started)
-- [ ] Phase 6 — Police (jail bust-outs, jail statistics, government framework)
 - [ ] Phase 7 — Cars (15 vehicles, theft, ownership, melting → bullets)
 - [ ] Phase 8 — Co-op crimes (4-hour jobs, 6-player teams, roles)
 - [ ] Phase 9 — Hospital (recovery, activities)
