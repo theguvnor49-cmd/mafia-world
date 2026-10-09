@@ -560,10 +560,66 @@ action (per-event detail); the running `cash_earned`/`cash_lost`/
 `mafia_xp` counters on `users` are what persists in aggregate, same
 division of labor as `busts`/`crimes` logging their own systems.
 
-## 23. Gambling (Phase 10 — not yet built)
+## 23. Gambling (implemented)
 
-Server-authoritative, transactional, logged, capped — never unlimited-money.
-Candidates: dice, slots, blackjack, roulette.
+All four brief-named candidates — dice, slots, roulette, blackjack —
+built as four independent, single-request games under
+`POST /api/v1/mafia/gambling/{dice,slots,roulette,blackjack}` (auth,
+requires ALIVE). Each resolves via its own pure, unit-tested function in
+`mafia/gambling/`, then one shared tail (`routes/gambling.ts`'s
+`applyBetOutcome`) applies the cash change and logs the bet to
+`gambling_bets` — same shape as every other probabilistic system in this
+codebase (GTA, busts, hospital's gamble), just with four resolvers instead
+of one. "Server-authoritative, transactional, logged, capped — never
+unlimited-money" is satisfied the same way everywhere: the route locks the
+player's row, the bet amount is checked against a hard per-game min/max
+*before* the pure function ever runs, and every bet — win or lose — is
+both applied to `cash`/`cash_earned`/`cash_lost` and written to
+`gambling_bets` inside one DB transaction.
+
+This is a different system from Phase 9's `hospital/gamble` coin flip,
+which stays hospital-only, untouched by any of this; this casino is usable
+any time you're ALIVE, not just while recovering.
+
+- **Dice** — two six-sided dice, bet UNDER (sum 2-6), SEVEN (exactly 7), or
+  OVER (8-12), a real casino side-bet shape. UNDER/OVER each land ~41.7%
+  of rolls and pay 1.9x; SEVEN lands ~16.7% and pays 4.5x — both
+  intentionally below "fair" (1/0.417≈2.4x, 1/0.167=6x) for a modest house
+  edge, per "never unlimited-money."
+- **Slots** — three independently-drawn reels (🍒/🍋/🔔/💎/7️⃣, weighted so
+  the jackpot symbol is rare), three-of-a-kind pays that symbol's own
+  multiplier (2x-40x), two cherries anywhere pays a small 1.5x
+  consolation, anything else is a total loss.
+- **Roulette** — a single-zero European wheel (0-36, not the American
+  double-zero one), supporting color (red/black), parity (odd/even), and
+  straight-up single-number bets. 0 is green and loses every color/parity
+  bet — the same "house number" mechanism that gives real roulette its
+  edge. Color/parity pay even money (2x); a straight-up number pays the
+  standard 35:1 (36x).
+- **Blackjack** — standard rules (naturals pay 3:2, dealer/push logic,
+  soft/hard Ace totals), dealt from a freshly shuffled 52-card deck every
+  hand. **The one real design decision in this system, flagged
+  prominently:** it's auto-played — no hit/stand decisions. Every other
+  probabilistic system in this codebase (including this file's other
+  three games) resolves in exactly one request via one pure function;
+  real blackjack is fundamentally a multi-turn game needing an
+  in-progress hand to survive across several requests, which would mean
+  building a new session-state architecture that nothing else here needs.
+  Rather than do that for one game, the player's hand plays itself with
+  the same fixed "stand on 17+, else hit" rule real dealers use — it's
+  still genuinely blackjack (naturals, busts, dealer draws, pushes all
+  work normally), just without the player choosing anything. Real
+  hit/stand is a candidate for a later pass if that depth is wanted.
+
+**Simplifications and placeholders worth flagging** (also "Open
+questions"): every payout multiplier, bet cap, and slot weight is an MVP
+placeholder (`GAMBLING` in `config.ts`) — the brief names the four
+candidate games but gives no odds, payouts, or limits for any of them.
+Bet caps are per-bet only; there's no daily or session-level loss cap. No
+betting history endpoint — like every other activity log in this game,
+the frontend keeps its own local session log rather than a dedicated
+`GET .../history` route. No multiplayer/shared tables (each bet is solely
+between one player and the house).
 
 ## 24. Gangs (Phase 10 — not yet built)
 
@@ -674,7 +730,8 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
 ## 33. Phases (see `TODO.md` for live status)
 
 1. Foundation 2. Core player 3. Crime 4. Weapons 5. PvP 6. Police
-7. Cars (implemented) 8. Co-op (implemented) 9. Hospital (implemented) 10. Gambling/Gangs 11. Businesses/factories
+7. Cars (implemented) 8. Co-op (implemented) 9. Hospital (implemented)
+10. Gambling (implemented) + Gangs (not yet built) 11. Businesses/factories
 12. Economy/balancing 13. Admin tools 14. Polish 15. Production deployment
 
 ---
@@ -814,6 +871,23 @@ failed GTA 1–2 min · Max 10 gangs. All changeable after real testing.
     tradeoff already accepted elsewhere, just newly visible here because
     this is the first status transition that needs a write rather than
     being purely derived on read.
+
+20. **Blackjack is auto-played, with no hit/stand decisions** (section
+    23) — the one real design call in Phase 10's gambling half, flagged
+    for the same reason as co-op's one-global-job call and hospital's
+    second-stage call: real (player-decided) blackjack needs an
+    in-progress hand to survive across multiple requests, a fundamentally
+    different shape from every other probabilistic system in this
+    codebase. Worth a second look if real hit/stand choice turns out to
+    matter to players — it would need genuine new session-state
+    architecture, not a small tweak.
+21. **Every gambling payout, bet cap, and slot weight is an MVP
+    placeholder** (section 23) — the brief names dice/slots/roulette/
+    blackjack as candidates but gives no odds, payouts, or limits for any
+    of them. All live in `GAMBLING` in `config.ts`, easy to retune. There's
+    also no daily/session loss cap, only per-bet caps — worth adding if
+    "never unlimited-money" should mean more than that once there's real
+    playtesting data on how fast cash moves through this system.
 
 None of these block Phase 1; they're flagged here so they get a real
 decision (not just an assumption baked in silently) before the phases that

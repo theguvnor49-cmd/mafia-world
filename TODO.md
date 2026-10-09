@@ -101,19 +101,27 @@ Tracks build status against the 15 phases in `GAME_DESIGN.md`. Keep this updated
 - [x] `gamble.test.ts` added; same actually-executed-in-a-scratchpad-script verification as every prior phase's pure logic (6 assertions covering the 0.5 win/loss boundary and correct scaling with bet amount)
 - [x] Verified the migration via `psql` as usual (including proving the new CHECK constraint rejects a bogus activity value), **plus** a full manual dry-run covering the dead→hospital settle transition — specifically including the bug-then-fix sequence for a kill target whose death had *just* expired: confirmed they'd incorrectly read as killable-again without the explicit settle call added to `pvp.ts`, and correctly read as HOSPITAL (and un-killable) with it — along with medical treatment, both gambling outcomes, and the small job's cooldown. All explicitly rolled back; residue confirmed zero from a fresh connection afterward.
 
+**Phase 10 — Gambling** (Gangs, the other half of "Phase 10," is tracked separately below — the two are fully independent systems)
+- [x] `011_gambling.sql` — `gambling_bets` log table (`user_id`, `game` CHECK IN ('dice','slots','roulette','blackjack'), `bet_amount` CHECK > 0, `net_change`, `detail` JSONB, `created_at`) + index on `(user_id, created_at)`. One table for all four games — `game` discriminates, `detail` holds whatever's specific to that game's outcome.
+- [x] **The one real design decision this half needed** (flagged in `GAME_DESIGN.md` section 23 and "Open questions" #20): blackjack is auto-played, no hit/stand decisions. Real blackjack needs an in-progress hand surviving across multiple requests — a different shape from every other probabilistic system here, which all resolve in one request via one pure function. Rather than build new session-state architecture for one game, blackjack's hand plays itself via the same fixed "stand on 17+" rule real dealers use. Still genuinely blackjack (naturals, busts, pushes, dealer draws all work normally) — just no player choice.
+- [x] `server/src/mafia/gambling/dice.ts`, `slots.ts`, `roulette.ts`, `blackjack.ts` — four pure, config-driven resolvers, same injectable-`rng` style as every other probabilistic function in this codebase. Dice: real casino "Over/Under Seven" side-bet shape. Slots: 3 weighted reels, three-of-a-kind or two-cherries payouts. Roulette: single-zero European wheel, color/parity/straight-up bets. Blackjack: full 52-card shuffle-and-deal, soft/hard Ace totals, naturals, dealer auto-play.
+- [x] `routes/gambling.ts` — `POST /api/v1/mafia/gambling/{dice,slots,roulette,blackjack}` (auth, requires ALIVE), sharing one lock-and-validate preamble (`lockAliveUser`) and one payout-and-log tail (`applyBetOutcome`) across all four handlers, each game's own bet-range/resolution logic staying inline and game-specific in between.
+- [x] Frontend: `/mafia/gambling` — four game cards (dice/slots/roulette/blackjack), each with its own bet input and busy state, shared local activity log; dashboard gained a "Casino →" nav link.
+- [x] `dice.test.ts`, `slots.test.ts`, `roulette.test.ts`, `blackjack.test.ts` added; same actually-executed-in-a-scratchpad-script verification as every prior phase's pure logic — 23 assertions total across all four games, including large-N statistical sweeps confirming empirical odds match each game's configured probabilities (dice categories, slot symbol frequencies, roulette color/number frequencies, blackjack's natural rate), plus hand-crafted exact-deck blackjack scenarios (player natural, dealer natural, both-natural push, player bust, dealer bust, plain win/push/loss) verified card-by-card.
+- [x] Verified the migration via `psql` as usual (including proving the CHECK constraints on `game`/`bet_amount` and the FK on `user_id` all correctly reject bad data), **plus** a full manual dry-run of the cash/`cash_earned`/`cash_lost`/`gambling_bets` update sequence across a win, a loss, and a push against a real seeded user — confirmed the running cash balance and both counters land exactly where hand-computed, and that a logged bet's JSONB `detail` round-trips correctly. Explicitly rolled back; residue confirmed zero from a fresh connection afterward.
+
 **Not yet verified for any phase:** a full `npm install` + running-server + HTTP round-trip test, and running the vitest suites *as vitest* rather than as a standalone script. This cloud sandbox's network policy blocks `registry.npmjs.org` (confirmed twice now, in two separate sessions a few weeks apart — once as an explicit "host not allowed"/"organization policy" denial, once as outright DNS failure) and the internal mirror needs credentials this session doesn't have — see "Open questions" in `GAME_DESIGN.md`. The code is written and reviewed carefully, but treat the first real `npm install && npm run dev` (by you, or once pushed to Render/Vercel) as the real first run.
 
 ## In progress
 
-- [ ] None right now. Phases 1-9 are all committed. Pushing straight through the remaining phases per Glenn's instruction — no more per-phase check-ins unless a genuine design decision blocks progress.
+- [ ] Phase 10 — Gangs (the other half of "Phase 10"; Gambling above is done). Continuing straight through per Glenn's instruction — no more per-phase check-ins unless a genuine design decision blocks progress.
 
 ## Next
 
-- [ ] Phase 10 — Gambling (dice/slots/blackjack/roulette) + Gangs (max 10, roles, treasury, territory, destruction)
+- [ ] Phase 11 — Businesses / factories
 - [ ] **Deployment walkthrough** (Step 8 of the original brief): GitHub repo → Supabase (Postgres) → Render (backend) → Vercel (frontend), one exact step at a time.
 
 ## Future (not started)
-- [ ] Phase 11 — Businesses / factories
 - [ ] Phase 12 — Economy / balancing pass
 - [ ] Phase 13 — Admin tools
 - [ ] Phase 14 — Polish

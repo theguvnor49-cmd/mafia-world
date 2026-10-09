@@ -194,6 +194,9 @@ export default function Dashboard() {
           <Link href="/mafia/hospital" style={navLinkStyle}>
             Hospital →
           </Link>
+          <Link href="/mafia/gambling" style={navLinkStyle}>
+            Casino →
+          </Link>
         </div>
 
         <p style={{ marginTop: 20, color: '#666', fontSize: 13 }}>

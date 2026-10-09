@@ -150,6 +150,63 @@ export const COOP = {
  * instantly ALIVE" fallthrough), not something combat causes directly —
  * nothing about Phase 5's shipped kill transaction changes. Premium-point
  * revive is untouched and still skips straight to fully ALIVE. */
+/** Gambling (brief section 23). "Candidates: dice, slots, blackjack,
+ * roulette" — all four are built (see GAME_DESIGN.md section 23 for why
+ * blackjack is auto-played rather than interactive). None of the specific
+ * payouts, odds, or bet caps are given in the brief — every number below
+ * is an MVP placeholder, picked to give the house a modest, standard-
+ * casino-shaped edge rather than being purely a coin flip like hospital's
+ * narrow gamble, while still honoring "never unlimited-money" with hard
+ * per-bet caps on every game. Distinct from, and not a replacement for,
+ * `HOSPITAL`'s own narrow gamble above, which stays hospital-only. */
+export const GAMBLING = {
+  DICE: {
+    MIN_BET: 100,
+    MAX_BET: 25_000,
+    // Two six-sided dice (2-12). UNDER = 2-6, SEVEN = exactly 7, OVER =
+    // 8-12 — a real casino side-bet shape ("Over/Under Seven"). UNDER/OVER
+    // each land 15/36 (~41.7%) of rolls; SEVEN lands 6/36 (~16.7%) but
+    // pays more, so every bet type's expected return is intentionally
+    // below 1x (the house edge "never unlimited-money" implies).
+    UNDER_OVER_PAYOUT_MULTIPLIER: 1.9,
+    SEVEN_PAYOUT_MULTIPLIER: 4.5,
+  },
+  SLOTS: {
+    MIN_BET: 100,
+    MAX_BET: 25_000,
+    // Weighted so the jackpot symbol is rare and the common one is common.
+    // Payout multipliers are for three-of-a-kind; two cherries (anywhere)
+    // pays a small consolation amount, matching how real slot machines
+    // usually give cherries a non-jackpot role.
+    SYMBOLS: [
+      { symbol: '🍒', weight: 40, threeOfAKindMultiplier: 2 },
+      { symbol: '🍋', weight: 28, threeOfAKindMultiplier: 3 },
+      { symbol: '🔔', weight: 18, threeOfAKindMultiplier: 6 },
+      { symbol: '💎', weight: 10, threeOfAKindMultiplier: 15 },
+      { symbol: '7️⃣', weight: 4, threeOfAKindMultiplier: 40 },
+    ] as const,
+    TWO_CHERRIES_MULTIPLIER: 1.5,
+  },
+  ROULETTE: {
+    MIN_BET: 100,
+    MAX_BET: 25_000,
+    // Single-zero European wheel (0-36), not the double-zero American
+    // one — simpler and gives a lower, cleaner house edge without a
+    // second green number to special-case. Real standard payouts: even
+    // money for color/parity, 35:1 (36x return) for a straight-up number.
+    COLOR_OR_PARITY_PAYOUT_MULTIPLIER: 2,
+    STRAIGHT_UP_PAYOUT_MULTIPLIER: 36,
+  },
+  BLACKJACK: {
+    MIN_BET: 100,
+    MAX_BET: 25_000,
+    // Standard 3:2 natural-blackjack payout (2.5x return). A plain win
+    // pays even money (2x return); a push returns the bet (1x, net 0).
+    BLACKJACK_PAYOUT_MULTIPLIER: 2.5,
+    WIN_PAYOUT_MULTIPLIER: 2,
+  },
+};
+
 export const HOSPITAL = {
   // Shorter than death's 24h (brief-given) since this is the lighter of
   // the two sequential stages.
