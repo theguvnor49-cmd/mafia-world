@@ -4,6 +4,9 @@
   "private": true,
   "description": "Backend API for Mafia World, a persistent multiplayer text-based mafia game.",
   "main": "dist/index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",

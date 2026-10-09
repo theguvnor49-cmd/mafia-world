@@ -23,7 +23,7 @@ import { adminRoutes } from './routes/admin';
 const app = Fastify({ logger: true });
 
 async function main() {
-  await app.register(cors, { origin: env.CORS_ORIGIN });
+  await app.register(cors, { origin: env.CORS_ORIGINS });
 
   app.get('/health', async () => ({
     ok: true,

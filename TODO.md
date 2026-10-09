@@ -156,6 +156,19 @@ Tracks build status against the 15 phases in `GAME_DESIGN.md`. Keep this updated
 
 **Not yet verified for any phase:** a full `npm install` + running-server + HTTP round-trip test, and running the vitest suites *as vitest* rather than as a standalone script. This cloud sandbox's network policy blocks `registry.npmjs.org` (confirmed twice now, in two separate sessions a few weeks apart — once as an explicit "host not allowed"/"organization policy" denial, once as outright DNS failure) and the internal mirror needs credentials this session doesn't have — see "Open questions" in `GAME_DESIGN.md`. The code is written and reviewed carefully, but treat the first real `npm install && npm run dev` (by you, or once pushed to Render/Vercel) as the real first run.
 
-## In progress
+**Phase 15 — Production deployment (repo-side prep)**
+- [x] Found and fixed a real pre-deployment gap: `CORS_ORIGIN` only ever supported a single allowed origin, which would have forced a choice between Vercel's own domain and a future custom domain. `server/src/config.ts` now splits it on commas into `CORS_ORIGINS`, passed to `@fastify/cors` as a list; `index.ts` updated to match.
+- [x] Added `engines.node: ">=20.0.0"` to both `server/package.json` and `web/package.json`, so Render and Vercel both build against a version this code has actually been checked against.
+- [x] Confirmed (already true, not newly added) that the backend already binds `0.0.0.0` and reads its port from the environment rather than a hardcoded value, that `db.ts` already negotiates SSL automatically for a `supabase.co` host, and that `scripts/migrate.ts` is idempotent and safe to run against a fresh database — all three load-bearing for the walkthrough below.
+- [x] Wrote `DEPLOYMENT.md` — the literal, one-exact-step-at-a-time walkthrough from the brief's Step 8 (GitHub → Supabase → Render → Vercel), including the two operational quirks found via web search while writing it (Supabase free-tier project pausing; Render free-tier spin-down) and an explicit, clearly-separated optional section for a paid custom domain later, rather than folding "paid hosting" into this phase's core scope — the brief's Step 8 names the free tiers, and `GAME_DESIGN.md` section 3 already deferred paid hosting to "once the game is worth the cost."
+- [x] Verified the `CORS_ORIGIN` split/trim/filter logic by actually executing it against multi-origin, whitespace-padded, and single-origin inputs — not just read by eye — and re-ran `node --experimental-strip-types --check` against every backend file touched.
 
-- [ ] **Phase 15 — Production deployment** (paid hosting + `.com` domain). The deployment walkthrough from Step 8 of the original brief: GitHub repo → Supabase (Postgres) → Render (backend) → Vercel (frontend), one exact step at a time. Continuing straight through per Glenn's instruction — no more per-phase check-ins unless a genuine design decision blocks progress. The last phase in the 7–15 run.
+This is as far as Phase 15 goes from inside this sandbox. See `GAME_DESIGN.md` section 34a for why: the remaining steps are four third-party accounts (GitHub, Supabase, Render, Vercel) that need Glenn's own email and, on at least one, his own payment method — not something an AI agent should or can do on his behalf. That's the standing "push straight through" instruction's own stated exception (something that can't be reasonably assumed) arriving for the first time, and it's an account-access constraint rather than a design ambiguity, so there's nothing to decide — just `DEPLOYMENT.md`'s numbered steps, left for Glenn to run himself.
+
+## Next (owner action required — see `DEPLOYMENT.md`)
+
+- [ ] Create the GitHub repo and push this code to it.
+- [ ] Sign up for Supabase, Render, and Vercel; wire up the environment variables `DEPLOYMENT.md` lists.
+- [ ] Run `npm run migrate` once against the new Supabase database.
+- [ ] Smoke-test the live deployment end to end.
+- [ ] *(Optional, later, paid — not required for any of the above)* a custom `.com` domain.

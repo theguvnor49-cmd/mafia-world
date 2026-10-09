@@ -4,7 +4,10 @@ Living design doc. This is the source of truth for game mechanics — if a new
 feature would conflict with something written here, that gets flagged and
 discussed before changing it. Update this file as each phase is built.
 
-**Status:** Phases 1–14 complete. See `TODO.md` for what's built vs. designed-only.
+**Status:** Phases 1–14 complete. Phase 15 (production deployment) is
+prepped and written up (`DEPLOYMENT.md`), but "complete" for that one
+phase means an owner with real accounts has actually run it — see
+section 34a. See `TODO.md` for what's built vs. designed-only.
 
 ---
 
@@ -40,14 +43,18 @@ multiplayer RPG + crime/economy game.
 - **Database:** PostgreSQL
 - **Free hosting for testing:** Vercel Hobby (frontend), Render Free
   (backend), Supabase Free (Postgres). Paid hosting + a `.com` domain come
-  later, once the game is worth the cost.
+  later, once the game is worth the cost. See `DEPLOYMENT.md` for the
+  actual step-by-step (Phase 15, section 34a).
 
 ## 4. Environment variables
 
 Backend (`server/.env`): `DATABASE_URL`, `JWT_SECRET`, `PORT`, `NODE_ENV`,
 `CORS_ORIGIN`, `TICK_SECRET`. Frontend (`web/.env.local`):
 `NEXT_PUBLIC_API_URL`. Never hard-coded, never committed — see
-`.env.example` in each app.
+`.env.example` in each app. `CORS_ORIGIN` accepts a comma-separated list
+(Phase 15) — one origin for local dev, multiple in production so the
+Vercel-assigned domain keeps working alongside a custom domain once
+bought; see `DEPLOYMENT.md`.
 
 ## 5. Database migrations
 
@@ -1125,7 +1132,59 @@ changes.
 7. Cars (implemented) 8. Co-op (implemented) 9. Hospital (implemented)
 10. Gambling + Gangs (implemented) 11. Businesses/factories (implemented)
 12. Economy/balancing (implemented) 13. Admin tools (implemented)
-14. Polish (implemented) 15. Production deployment
+14. Polish (implemented) 15. Production deployment (repo prepped,
+    walkthrough written — rollout itself is an owner action, see 34a)
+
+## 34a. Phase 15 — production deployment
+
+Different in kind from every phase before it, and worth being explicit
+about why. Phases 7–14 were all things buildable and fully verifiable
+inside this sandbox — code, migrations, tests. Phase 15 is four accounts
+on four services (GitHub, Supabase, Render, Vercel) this sandbox has no
+credentials for and no business creating on Glenn's behalf — account
+creation needs his own email and, on at least one of them, his own
+payment method even for the free tier. So this phase splits cleanly into
+a part I can do and a part only he can:
+
+**Done here — repo-side prep, each verified, not just reviewed:**
+- `server/src/config.ts` / `index.ts`: `CORS_ORIGIN` only ever supported
+  one allowed origin. Production needs at least two eventually (Vercel's
+  own `*.vercel.app` domain, which has to keep working, plus a custom
+  domain once bought) — so it's now comma-separated, split into
+  `CORS_ORIGINS` and handed to `@fastify/cors` as a list. Verified by
+  actually executing the split/trim/filter logic against multi-origin,
+  whitespace-padded, and single-origin inputs, not just read by eye.
+- `server/package.json` / `web/package.json`: added `engines.node: ">=20.0.0"`
+  so both Render and Vercel build against a version this code has
+  actually been checked against, rather than each platform's own default.
+- Confirmed (didn't newly add — this was already true) that the backend
+  already binds `0.0.0.0` and reads its port from the environment rather
+  than a hardcoded value (`index.ts`), and that `db.ts` already negotiates
+  SSL automatically for a `supabase.co` host — both load-bearing for
+  Render specifically, both already correct since earlier phases.
+- Confirmed `server/scripts/migrate.ts` is idempotent and safe to run
+  against a brand-new Supabase database.
+- New `DEPLOYMENT.md` at the repo root: the actual Step 8 walkthrough,
+  written as literal numbered steps per service, plus the two "know this
+  going in" operational quirks found via web search while writing it
+  (Supabase free projects pause after a stretch of inactivity; Render's
+  free web services spin down and cold-start) — both flagged as
+  possibly-dated, since free-tier specifics on hosting platforms are
+  exactly the kind of thing that changes and is worth confirming on each
+  provider's own current pricing page rather than trusting a fixed figure
+  written down once.
+
+**Left to Glenn — nothing here is a design decision, it's account
+creation and dashboard clicks:** create the GitHub repo and push this
+code to it (this session's own GitHub access only reaches repositories
+already connected to it, and none is); sign up for Supabase, Render, and
+Vercel; set the environment variables `DEPLOYMENT.md` lists on Render and
+Vercel; run the migration script once against the new Supabase database.
+None of this blocks the standing "keep building" instruction from
+applying to future phases — there's nothing to decide, just steps to
+run — it's listed here because "Phase 15 complete" can't honestly mean
+"the game is live in production" until someone with the right accounts
+actually runs them.
 
 ---
 

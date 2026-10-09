@@ -12,6 +12,11 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(16, 'JWT_SECRET should be at least 16 characters'),
   PORT: z.coerce.number().int().positive().default(4000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  // Comma-separated list of allowed frontend origins (CORS) — a single
+  // origin works fine for local dev, but production needs at least two
+  // at once (Phase 15): Vercel's own *.vercel.app domain, which keeps
+  // working after a custom domain is attached, plus the custom .com
+  // domain itself once bought. Split/trimmed below into CORS_ORIGINS.
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   TICK_SECRET: z.string().min(16, 'TICK_SECRET should be at least 16 characters'),
 });
@@ -25,4 +30,11 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-export const env = parsed.data;
+export const env = {
+  ...parsed.data,
+  // Derived, not its own schema field: everything else in the codebase
+  // that wants "the" frontend origin for a single-origin purpose (there
+  // is none today) can still read CORS_ORIGIN directly; @fastify/cors
+  // (index.ts) reads this array instead, since it accepts one natively.
+  CORS_ORIGINS: parsed.data.CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean),
+};

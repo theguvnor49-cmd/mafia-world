@@ -1,6 +1,6 @@
 # Mafia World
 
-A persistent, browser-based, text-driven multiplayer mafia/crime game. See [`GAME_DESIGN.md`](./GAME_DESIGN.md) for the full design spec and [`TODO.md`](./TODO.md) for build status.
+A persistent, browser-based, text-driven multiplayer mafia/crime game. See [`GAME_DESIGN.md`](./GAME_DESIGN.md) for the full design spec, [`TODO.md`](./TODO.md) for build status, and [`DEPLOYMENT.md`](./DEPLOYMENT.md) for how to put this live.
 
 This repo is being built in phases with Claude acting as lead developer. **Phases 1–14 are complete**: foundation (auth, health check, dashboard), core player (ranks, states, public profiles), crime (Grand Theft Auto, heat), weapons (guns, armour, bullet calculator), PvP (hunt/search, kill resolution, death/revive, witness statements), police (jail bust-outs), cars (vehicle theft, ownership, melting into bullets), co-op crimes (4-hour team jobs, up to 6 players, flat cash+XP payout), hospital recovery (a shorter second stage after death, with treatment/gambling/small-job activities to pass the time), a casino (dice, slots, roulette, blackjack), gangs (up to 10 at a time, with ranks, a shared treasury, and claimable territory), businesses (8 ownable, upgradeable, income-generating types that can be robbed or seized), an economy/balancing audit that actually computed every system's real numbers via executed simulations rather than eyeballing config values, a minimal admin toolset (look up any player, grant/correct their cash or premium points, clear a stuck status), and a polish pass (shared cross-page navigation, plus a `cash_spent` counter that closes out one of the earlier open questions). See `TODO.md` for the live, detailed status and `GAME_DESIGN.md` for how each system works.
 
@@ -10,7 +10,7 @@ This repo is being built in phases with Claude acting as lead developer. **Phase
 - **Backend:** Node.js + Fastify + TypeScript — `server/`
 - **Database:** PostgreSQL — `server/migrations/`
 
-Free hosting target for testing: Vercel (frontend), Render (backend), Supabase (Postgres). See `GAME_DESIGN.md` section "Hosting Plan" for the guided deployment steps once we get there.
+Free hosting target for testing: Vercel (frontend), Render (backend), Supabase (Postgres). See [`DEPLOYMENT.md`](./DEPLOYMENT.md) for the guided, step-by-step deployment walkthrough.
 
 ## Repository layout
 
@@ -34,6 +34,7 @@ mafia-world/
 │   └── .env.example
 ├── GAME_DESIGN.md      Living design document — the source of truth for game mechanics
 ├── TODO.md             Completed / in progress / next / future
+├── DEPLOYMENT.md       Step-by-step: GitHub → Supabase → Render → Vercel
 └── README.md           This file
 ```
 
@@ -50,7 +51,7 @@ createdb mafia_world
 # connection string looks like: postgres://USER:PASSWORD@localhost:5432/mafia_world
 ```
 
-(Later, once we set up Supabase, `DATABASE_URL` will point there instead — same steps.)
+(For a production database instead of a local one, see [`DEPLOYMENT.md`](./DEPLOYMENT.md)'s Supabase steps — same `DATABASE_URL`, pointed somewhere real.)
 
 ### 2. Backend
 
@@ -123,8 +124,12 @@ Log out and back in (or just refresh — `/me` is re-fetched on load) and an **A
 
 **Polish:** a shared `NavBar` component now sits at the top of every `/mafia/*` subpage, so any system is one click from any other instead of always routing back through the dashboard first; and a new `cash_spent` stat tracks permanent voluntary spending (guns, armour, businesses, gang creation, hospital treatment) separately from `cash_earned`/`cash_lost`, deliberately excluding gang treasury deposits and gambling wagers, neither of which is a real loss. Closes "Open questions" #9. Full write-up in `GAME_DESIGN.md` section 33a.
 
+**Deployment prep:** the repo-side half of Phase 15 — the half that doesn't need an account on anything. Found and fixed a real gap (`CORS_ORIGIN` only ever supported one origin, which would've forced a choice between Vercel's domain and a future custom one — it's comma-separated now), pinned both apps to `engines.node >= 20`, and confirmed the backend was already Render/Supabase-ready from earlier phases (binds `0.0.0.0`, reads its port from the environment, negotiates SSL for a `supabase.co` host automatically). The actual walkthrough — GitHub → Supabase → Render → Vercel, one exact step at a time — is [`DEPLOYMENT.md`](./DEPLOYMENT.md). Full write-up in `GAME_DESIGN.md` section 34a.
+
 Nothing here trusts the client: passwords are hashed with bcrypt, sessions are JWTs verified server-side, every currency/combat operation runs inside a database transaction with row locking, and all player state is read from Postgres on every request.
 
 ## Next up
 
-See `TODO.md`. Straight on to Phase 15 (production deployment) now — the last phase in the 7–15 run, and a different kind of phase: GitHub repo → Supabase (Postgres) → Render (backend) → Vercel (frontend), one exact step at a time, rather than new game design. Still no per-phase pauses unless something genuinely needs a decision only you can make — and this phase is the likeliest one to hit that, since it involves accounts and credentials (hosting providers, a domain) that are yours to hold, not something buildable from inside this sandbox. Eight things worth your own look whenever you do stop to review: `GAME_DESIGN.md` section 16 and "Open questions" #10 flag a deliberate deviation from the brief in how selling witness information works, for currency-safety reasons; "Open questions" #16 flags that co-op crimes run as one global job rather than one per state; "Open questions" #18 flags the biggest judgment call yet at the time — the brief never actually says what sends a player to the hospital, so Phase 9 made it the free path's second stage after death rather than something combat causes directly; "Open questions" #20 flags that blackjack is auto-played with no hit/stand decisions, since real player-decided blackjack would need a new kind of session state nothing else here uses; "Open questions" #22-23 flag that gangs only let the Boss administer anything and can only claim neutral territory, never capture it from another gang; "Open questions" #27 flags the most speculative gap yet — the brief says businesses are "controllable by gangs," and none of that was built, because the brief gives no shape for what gang control would actually mean; "Open questions" #30 flags Phase 12's own biggest finding — GTA alone can out-earn a maxed-out business by 2-3x per hour, worth a real look once there's actual playtesting data; and "Open questions" #31-32 flag Phase 13's own two scope calls — no self-service admin promotion (direct SQL only, by design) and no ban/suspend system at all (the brief never mentions moderation).
+See `TODO.md`. That's Phases 1–14 fully built, plus everything Phase 15 can be from inside this sandbox — which is where this build run ends for now, not because of a design question, but because what's left (creating GitHub/Supabase/Render/Vercel accounts, typing in environment variables, running one command against the live database) genuinely needs to be done by you, from your own machine, with your own accounts. `DEPLOYMENT.md` is written so that's a checklist, not a puzzle. Once it's live — or sooner, if you want changes, new features, or a look at anything below first — just say so and I'll keep going; nothing about "no check-ins" was ever about refusing to pick back up, only about not pausing to ask permission between phases that didn't need it.
+
+Eight things worth your own look whenever you do stop to review: `GAME_DESIGN.md` section 16 and "Open questions" #10 flag a deliberate deviation from the brief in how selling witness information works, for currency-safety reasons; "Open questions" #16 flags that co-op crimes run as one global job rather than one per state; "Open questions" #18 flags the biggest judgment call yet at the time — the brief never actually says what sends a player to the hospital, so Phase 9 made it the free path's second stage after death rather than something combat causes directly; "Open questions" #20 flags that blackjack is auto-played with no hit/stand decisions, since real player-decided blackjack would need a new kind of session state nothing else here uses; "Open questions" #22-23 flag that gangs only let the Boss administer anything and can only claim neutral territory, never capture it from another gang; "Open questions" #27 flags the most speculative gap yet — the brief says businesses are "controllable by gangs," and none of that was built, because the brief gives no shape for what gang control would actually mean; "Open questions" #30 flags Phase 12's own biggest finding — GTA alone can out-earn a maxed-out business by 2-3x per hour, worth a real look once there's actual playtesting data; and "Open questions" #31-32 flag Phase 13's own two scope calls — no self-service admin promotion (direct SQL only, by design) and no ban/suspend system at all (the brief never mentions moderation).
