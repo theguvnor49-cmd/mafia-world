@@ -81,7 +81,7 @@ describe('resolveSlots', () => {
   });
 
   it('every reel is always one of the five configured symbols, over many trials', () => {
-    const validSymbols = new Set(GAMBLING.SLOTS.SYMBOLS.map((s) => s.symbol));
+    const validSymbols: Set<string> = new Set(GAMBLING.SLOTS.SYMBOLS.map((s) => s.symbol));
     for (let i = 0; i < 10_000; i++) {
       const result = resolveSlots(100);
       for (const reel of result.reels) {
@@ -109,3 +109,4 @@ describe('resolveSlots', () => {
     }
   });
 });
+

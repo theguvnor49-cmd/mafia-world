@@ -180,7 +180,7 @@ export async function gamblingRoutes(app: FastifyInstance) {
         checkAffordable(amount, cash);
 
         const result = resolveSlots(amount);
-        await applyBetOutcome(client, userId, 'slots', amount, result.netChange, result);
+        await applyBetOutcome(client, userId, 'slots', amount, result.netChange, { ...result });
 
         return { ...result, newCashBalance: cash + result.netChange };
       });
@@ -236,7 +236,7 @@ export async function gamblingRoutes(app: FastifyInstance) {
         checkAffordable(amount, cash);
 
         const result = resolveBlackjack(amount);
-        await applyBetOutcome(client, userId, 'blackjack', amount, result.netChange, result);
+        await applyBetOutcome(client, userId, 'blackjack', amount, result.netChange, { ...result });
 
         return { ...result, newCashBalance: cash + result.netChange };
       });
@@ -249,3 +249,4 @@ export async function gamblingRoutes(app: FastifyInstance) {
     }
   });
 }
+
